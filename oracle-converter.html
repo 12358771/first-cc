@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle to OceanBase 转换工具</title>
+<style>
+  :root {
+    --bg: #0F0F1A;
+    --card-bg: #1A1A2E;
+    --text: #E0E0E8;
+    --text-secondary: #7A7A90;
+    --shadow: 0 2px 20px rgba(0,0,0,0.5);
+    --radius: 12px;
+    --color-success: #27AE60;
+    --color-error: #E74C3C;
+    --color-warning: #F39C12;
+    --color-info: #3498DB;
+    --color-ob-marker: #E67E22;
+    --drop-bg: #1E1E36;
+    --drop-border: #3A3A58;
+    --drop-hover-border: #3498DB;
+    --drop-hover-bg: #1A2740;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    display: flex; flex-direction: column; user-select: none; -webkit-user-select: none;
+  }
+  .header {
+    background: var(--card-bg); border-bottom: 1px solid #2A2A40;
+    padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; display: flex; align-items: center; gap: 10px; }
+  .header-actions { display: flex; gap: 10px; }
+  button {
+    font-family: inherit; font-size: 13px; font-weight: 600; border: none;
+    border-radius: 8px; padding: 8px 18px; cursor: pointer; transition: all 0.15s; outline: none;
+  }
+  button:active { transform: scale(0.96); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: #3498DB; color: white; }
+  .btn-primary:hover:not(:disabled) { background: #2980B9; }
+  .btn-secondary { background: #2A2A40; color: var(--text); }
+  .btn-secondary:hover:not(:disabled) { background: #3E3E58; }
+  .btn-success { background: var(--color-success); color: white; }
+  .btn-success:hover:not(:disabled) { background: #219A52; }
+  .btn-danger { background: var(--color-error); color: white; }
+  .btn-danger:hover:not(:disabled) { background: #C0392B; }
+  .btn-icon { background: none; color: var(--text-secondary); padding: 6px 10px; font-size: 13px; }
+  .btn-icon:hover { background: #2E2E48; color: var(--text); }
+  .main { display: flex; flex: 1; min-height: 0; gap: 0; }
+  .left-panel { width: 340px; flex-shrink: 0; background: var(--card-bg); border-right: 1px solid #2A2A40; display: flex; flex-direction: column; overflow: hidden; }
+  .drop-zone { margin: 16px; border: 2px dashed var(--drop-border); border-radius: var(--radius); background: var(--drop-bg); text-align: center; padding: 32px 16px; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--drop-hover-border); background: var(--drop-hover-bg); }
+  .drop-zone .drop-icon { font-size: 36px; margin-bottom: 8px; }
+  .drop-zone .drop-text { font-size: 14px; color: var(--text); }
+  .drop-zone .drop-hint { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .file-list-header { padding: 0 16px 8px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .file-list-header span { font-size: 13px; color: var(--text-secondary); }
+  .file-list-header .actions { display: flex; gap: 6px; }
+  .file-list-header button { font-size: 11px; padding: 4px 10px; }
+  .file-list { flex: 1; overflow-y: auto; padding: 0 12px 12px; }
+  .file-card { background: #222240; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; cursor: pointer; border: 1.5px solid transparent; transition: border-color 0.15s; }
+  .file-card:hover { border-color: #3E3E58; }
+  .file-card.selected { border-color: var(--color-info); }
+  .file-card .checkbox { flex-shrink: 0; width: 16px; height: 16px; accent-color: #3498DB; }
+  .file-card .file-info { flex: 1; min-width: 0; }
+  .file-card .file-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-card .file-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .file-card .file-status { flex-shrink: 0; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .file-card .progress-bar-mini { height: 3px; background: #3A3A50; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+  .file-card .progress-bar-mini .fill { height: 100%; background: var(--color-info); border-radius: 2px; transition: width 0.3s; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; flex-shrink: 0; }
+  .status-pending  { color: var(--text-secondary); }
+  .status-converting { color: var(--color-info); }
+  .status-done     { color: var(--color-success); }
+  .status-error    { color: var(--color-error); }
+  .file-card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .file-card-actions button { font-size: 11px; padding: 3px 8px; border-radius: 4px; }
+  .right-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+  .code-toolbar { padding: 12px 20px; border-bottom: 1px solid #2A2A40; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .code-toolbar .tabs { display: flex; gap: 0; }
+  .code-toolbar .tab { padding: 8px 20px; font-size: 13px; font-weight: 600; border: none; background: none; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .code-toolbar .tab.active { color: var(--color-info); border-bottom-color: var(--color-info); }
+  .code-toolbar .tab:hover { color: var(--text); }
+  .code-split { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+  .code-pane { flex: 1; overflow: auto; padding: 16px; position: relative; }
+  .code-pane:first-child { border-right: 1px solid #2A2A40; }
+  .code-pane .pane-label { position: sticky; top: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-secondary); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #2A2A40; z-index: 1; background: var(--bg); }
+  .code-pane pre { font-family: "Consolas", "Cascadia Code", "Courier New", monospace; font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; color: var(--text); }
+  .code-pane .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 14px; text-align: center; }
+  .code-pane .empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
+  .status-bar { background: var(--card-bg); border-top: 1px solid #2A2A40; padding: 8px 24px; font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; flex-shrink: 0; }
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column-reverse; gap: 8px; }
+  .toast { background: var(--card-bg); border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,0.4); animation: toastIn 0.3s ease; border-left: 3px solid var(--color-info); }
+  .toast.success { border-left-color: var(--color-success); }
+  .toast.error   { border-left-color: var(--color-error); }
+  .toast.warning { border-left-color: var(--color-warning); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
+  .overlay.show { display: flex; }
+  .panel { background: var(--card-bg); border-radius: var(--radius); box-shadow: 0 8px 40px rgba(0,0,0,0.3); padding: 28px 28px 24px; width: 420px; max-height: 80vh; overflow-y: auto; }
+  .panel h2 { font-size: 18px; margin-bottom: 20px; text-align: center; }
+  .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 14px; }
+  .setting-row label { color: var(--text); flex-shrink: 0; }
+  .setting-row input[type="text"], .setting-row input[type="password"], .setting-row select, .setting-row input[type="number"] { width: 200px; padding: 6px 10px; border: 1.5px solid #3E3E58; border-radius: 6px; font-size: 13px; font-family: inherit; outline: none; background: #1A1A2E; color: #E0E0E8; }
+  .setting-row input:focus, .setting-row select:focus { border-color: var(--color-info); }
+  .setting-row select { cursor: pointer; }
+  .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle input { display: none; }
+  .toggle .slider { position: absolute; inset: 0; background: #3E3E58; border-radius: 12px; cursor: pointer; transition: background 0.2s; }
+  .toggle .slider::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: white; border-radius: 50%; transition: transform 0.2s; }
+  .toggle input:checked + .slider { background: #3498DB; }
+  .toggle input:checked + .slider::after { transform: translateX(20px); }
+  .panel .btn-primary { width: 100%; margin-top: 12px; }
+  .panel .note { font-size: 11px; color: var(--text-secondary); margin-top: 12px; line-height: 1.5; }
+  .confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 300; justify-content: center; align-items: center; }
+  .confirm-overlay.show { display: flex; }
+  .confirm-box { background: var(--card-bg); border-radius: var(--radius); padding: 24px; width: 340px; text-align: center; }
+  .confirm-box p { margin-bottom: 20px; line-height: 1.5; }
+  .confirm-btns { display: flex; gap: 10px; justify-content: center; }
+  .kw  { color: #569CD6; font-weight: bold; }
+  .str { color: #CE9178; }
+  .cmt { color: #6A9955; font-style: italic; }
+  .num { color: #B5CEA8; }
+  .ob  { color: #E67E22; font-weight: bold; }
+  @media (max-width: 768px) {
+    .main { flex-direction: column; }
+    .left-panel { width: 100%; max-height: 40vh; }
+    .code-split { flex-direction: column; }
+    .code-pane:first-child { border-right: none; border-bottom: 1px solid #2A2A40; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Oracle to OceanBase 转换工具</h1>
+  <div class="header-actions"><button class="btn-icon" onclick="openSettings()">⚙ 设置</button></div>
+</div>
+
+<div class="main">
+  <div class="left-panel">
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">📂</div>
+      <div class="drop-text">拖拽 .pro 文件到此处</div>
+      <div class="drop-hint">或点击选择文件（支持 .pro / .sql / .pck / .fnc / .pkb）</div>
+    </div>
+    <div class="file-list-header">
+      <span id="fileCount">暂无文件</span>
+      <div class="actions">
+        <button class="btn-secondary" onclick="selectAll()">全选</button>
+        <button class="btn-secondary" onclick="deselectAll()">取消全选</button>
+      </div>
+    </div>
+    <div class="file-list" id="fileList">
+      <div style="text-align:center;padding:30px;color:var(--text-secondary);font-size:13px;">拖拽文件或点击上方区域开始</div>
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid #2A2A40;flex-shrink:0;display:flex;gap:8px;">
+      <button class="btn-primary" id="btnConvert" onclick="convertSelected()" style="flex:1;">▶ 转换选中</button>
+      <button class="btn-success" id="btnSaveAll" onclick="saveAll()" style="flex:1;" disabled>💾 保存全部</button>
+    </div>
+  </div>
+  <div class="right-panel">
+    <div class="code-toolbar">
+      <div class="tabs">
+        <button class="tab active" onclick="switchView('split')">分屏对比</button>
+        <button class="tab" onclick="switchView('source')">Oracle 源码</button>
+        <button class="tab" onclick="switchView('result')">OB 结果</button>
+      </div>
+      <div>
+        <button class="btn-secondary" onclick="copyResult()" id="btnCopy" disabled>📋 复制结果</button>
+        <button class="btn-secondary" onclick="saveCurrent()" id="btnSaveOne" disabled>💾 保存当前</button>
+      </div>
+    </div>
+    <div class="code-split" id="codeSplit">
+      <div class="code-pane" id="sourcePane">
+        <div class="pane-label">📄 Oracle 源码</div>
+        <div class="empty-state" id="sourceEmpty"><div class="icon">📋</div><div>选择文件查看源码</div></div>
+        <pre id="sourceCode" style="display:none;"></pre>
+      </div>
+      <div class="code-pane" id="resultPane">
+        <div class="pane-label">✅ OceanBase 转换结果</div>
+        <div class="empty-state" id="resultEmpty"><div class="icon">🔄</div><div>点击「转换选中」开始转换</div></div>
+        <pre id="resultCode" style="display:none;"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar"><span id="statusText">就绪</span><span id="statusSummary"></span></div>
+
+<div class="overlay" id="settingsOverlay">
+  <div class="panel">
+    <h2>⚙ 设置</h2>
+    <div class="setting-row"><label>API Key</label><input type="password" id="setApiKey" placeholder="sk-..."></div>
+    <div class="setting-row"><label>显示 Key</label><label class="toggle"><input type="checkbox" id="setShowKey" onchange="toggleKeyVisibility()"><span class="slider"></span></label></div>
+    <div class="setting-row"><label>模型</label><select id="setModel"><option value="deepseek-chat">DeepSeek-V3</option><option value="deepseek-reasoner">DeepSeek-R1</option></select></div>
+    <div class="setting-row"><label>Max Tokens</label><input type="number" id="setMaxTokens" value="8192" min="1024" max="32000" step="1024"></div>
+    <div class="setting-row"><label>API 地址</label><select id="setApiEndpoint" onchange="onEndpointChange()"><option value="http://localhost:8765/v1/chat/completions">本地代理 (推荐)</option><option value="https://api.deepseek.com/v1/chat/completions">DeepSeek 直连</option></select></div>
+    <div class="note" id="endpointNote" style="margin-top:4px;color:var(--color-success);">推荐使用本地代理，需先运行: python proxy_server.py</div>
+    <div class="setting-row"><label>记住 API Key</label><label class="toggle"><input type="checkbox" id="setRememberKey" checked><span class="slider"></span></label></div>
+    <button class="btn-primary" onclick="saveSettings()">保存设置</button>
+    <button class="btn-secondary" onclick="testConnection()" style="width:100%;margin-top:8px;">🔌 测试连接</button>
+    <button class="btn-danger" onclick="clearAllData()" style="width:100%;margin-top:8px;">🗑 清除所有数据</button>
+    <div class="note">API Key 存储在浏览器本地存储中，不会上传到任何服务器。请勿在公共电脑上保存 API Key。</div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay"><div class="confirm-box"><p id="confirmMsg"></p><div class="confirm-btns"><button class="btn-danger" id="confirmYes">确认</button><button class="btn-secondary" id="confirmNo">取消</button></div></div></div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ===================================================================
+//  第 1 部分：嵌入式 Skill 内容（System Prompt）
+// ===================================================================
+var SKILL_CONTENT = "# Oracle to OceanBase 存储过程转换\n\n将 Oracle 数据库存储过程、函数、包体代码转换为 OceanBase Oracle 模式兼容代码，同时进行性能优化，输出逐段转换对比。\n\n## 转换流程\n1. 通读代码\n2. 扫描差异点\n3. 逐段转换\n4. 性能优化\n5. 标注修改\n6. 输出对比\n\n## 核心规则\n\n### 标注规则\n每个修改点必须添加注释：\n-- [OB迁移] 原Oracle写法 to OB写法: 原因说明\n\n### 必须处理\n- LONG / LONG RAW to CLOB / BLOB\n- BFILE to 不支持\n- DECODE() to CASE WHEN\n- INTERVAL 分区 to RANGE 分区\n- PRAGMA RESTRICT_REFERENCES to 删除\n- PRAGMA UDF to 删除\n- UTL_FILE / UTL_HTTP / UTL_MAIL to 标注不支持\n\n### 性能优化\n- 逐行 DML to BULK COLLECT + FORALL\n- 逐行 COMMIT to 批量提交\n- 字符串拼接 to 绑定变量\n- NOT IN to NOT EXISTS\n- 大对象 OUT 参数 to 添加 NOCOPY\n\n### 完全兼容(不要改)\nVARCHAR2/NUMBER/DATE/TIMESTAMP/CLOB/BLOB\nNVL/TO_CHAR/TO_DATE/SUBSTR/INSTR/SYSDATE\nCREATE OR REPLACE PROCEDURE/FUNCTION/PACKAGE\nCURSOR/FOR LOOP/SYS_REFCURSOR\nEXCEPTION WHEN/RAISE/RAISE_APPLICATION_ERROR\nEXECUTE IMMEDIATE/SEQUENCE\n\n## 输出格式\n### 一、修改摘要\n| 位置 | 类型 | Oracle 原写法 | OB 写法 | 修改原因 |\n\n### 二、逐段对比\n--- 原始代码\n+++ 转换后代码\n\n### 三、完整转换后代码\n\n### 四、注意事项\n\n## Oracle to OceanBase 语法对照\n\n### 数据类型\n- VARCHAR2/NUMBER/INTEGER/CHAR/CLOB/BLOB/DATE/TIMESTAMP to 完全兼容\n- LONG to CLOB(必须改)\n- LONG RAW to BLOB(必须改)\n- BFILE to 不支持\n\n### 系统函数\n- NVL/NVL2/COALESCE to 完全兼容\n- DECODE to 建议转CASE WHEN\n- TO_CHAR/TO_DATE/SYSDATE/ADD_MONTHS/TRUNC to 完全兼容\n- SUBSTR/INSTR/LENGTH/TRIM/UPPER/LOWER/REGEXP_* to 完全兼容\n- SUM/AVG/COUNT/ROW_NUMBER/RANK/LEAD/LAG to 完全兼容\n\n### 存储过程\n- CREATE OR REPLACE PROCEDURE/FUNCTION/PACKAGE to 完全兼容\n- PRAGMA AUTONOMOUS_TRANSACTION to 支持\n- PRAGMA RESTRICT_REFERENCES to 不支持(删除)\n- PRAGMA UDF to 不支持(删除)\n\n### 游标\n- 显式游标/FOR LOOP游标/SYS_REFCURSOR to 完全兼容\n- SQL%FOUND/SQL%ROWCOUNT to 完全兼容\n\n### 异常处理\n- NO_DATA_FOUND/TOO_MANY_ROWS/DUP_VAL_ON_INDEX to 完全兼容\n- RAISE/RAISE_APPLICATION_ERROR/SQLCODE/SQLERRM to 完全兼容\n\n### 动态SQL\n- EXECUTE IMMEDIATE to 完全兼容\n- DBMS_SQL to 部分支持(优先用EXECUTE IMMEDIATE)\n\n### 序列\n- CREATE SEQUENCE/NEXTVAL/CURRVAL to 完全兼容\n- IDENTITY列 to 完全兼容\n\n### 分区表\n- RANGE/LIST/HASH分区 to 完全兼容\n- INTERVAL分区 to 不支持(改RANGE)\n- REFERENCE分区 to 不支持\n\n### 系统包\n- DBMS_OUTPUT/DBMS_LOCK/DBMS_JOB/DBMS_LOB/DBMS_STATS to 支持\n- UTL_FILE/UTL_HTTP/UTL_MAIL to 不支持(应用层替代)\n- DBMS_AQ/DBMS_PARALLEL_EXECUTE to 不支持";
+
+// ===================================================================
+//  第 2 部分：状态与常量
+// ===================================================================
+var STATUS = { PENDING: 'pending', CONVERTING: 'converting', DONE: 'done', ERROR: 'error' };
+var STATUS_TEXT = { pending: '等待中', converting: '转换中', done: '已完成', error: '失败' };
+var ALLOWED_EXTENSIONS = ['.pro', '.sql', '.pck', '.fnc', '.prc', '.pkb', '.pks'];
+var DEFAULT_SETTINGS = { apiKey: '', model: 'deepseek-chat', maxTokens: 8192, rememberKey: true, apiEndpoint: 'http://localhost:8765/v1/chat/completions' };
+
+var files = [];
+var selectedFileId = null;
+var settings = {};
+var currentView = 'split';
+var isConverting = false;
+var abortControllers = {};
+var nextId = 1;
+
+// ===================================================================
+//  第 3 部分：设置读写
+// ===================================================================
+function loadSettings() {
+  try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem('ob_converter_settings') || '{}')); }
+  catch(e) { return Object.assign({}, DEFAULT_SETTINGS); }
+}
+function saveSettingsToStorage(cfg) { localStorage.setItem('ob_converter_settings', JSON.stringify(cfg)); }
+
+// ===================================================================
+//  第 4 部分：文件管理
+// ===================================================================
+function isAllowedFile(name) {
+  var lower = name.toLowerCase();
+  return ALLOWED_EXTENSIONS.some(function(ext) { return lower.endsWith(ext); });
+}
+
+function readFileContent(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      var text = reader.result;
+      var replacementCount = (text.match(/锟/g) || []).length;
+      if (replacementCount > text.length * 0.01) {
+        var gbkReader = new FileReader();
+        gbkReader.onload = function() { resolve(gbkReader.result); };
+        gbkReader.onerror = function() { reject(new Error('文件读取失败，请检查文件编码')); };
+        gbkReader.readAsText(file, 'GBK');
+      } else {
+        resolve(text);
+      }
+    };
+    reader.onerror = function() { reject(new Error('文件读取失败，请检查文件权限')); };
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('dragover');
+  addFiles(Array.from(e.dataTransfer.files));
+}
+
+function handleFilePicker() {
+  if (window.showOpenFilePicker) {
+    window.showOpenFilePicker({
+      multiple: true,
+      types: [{ description: '存储过程文件', accept: { 'text/plain': ALLOWED_EXTENSIONS } }]
+    }).then(function(handles) {
+      return Promise.all(handles.map(function(h) { return h.getFile(); }));
+    }).then(function(files) {
+      addFiles(files);
+    }).catch(function(e) {
+      if (e.name !== 'AbortError') showToast('文件选择失败: ' + e.message, 'error');
+    });
+  } else {
+    var input = document.createElement('input');
+    input.type = 'file'; input.multiple = true;
+    input.accept = ALLOWED_EXTENSIONS.join(',');
+    input.onchange = function() { addFiles(Array.from(input.files)); };
+    input.click();
+  }
+}
+
+function addFiles(newFiles) {
+  var added = 0, skipped = 0;
+  function processNext() {
+    if (newFiles.length === 0) {
+      if (added > 0) { showToast('成功添加 ' + added + ' 个文件' + (skipped > 0 ? '，跳过 ' + skipped + ' 个' : ''), 'success'); renderFileList(); updateStatusBar(); }
+      else if (skipped > 0) { showToast('没有可添加的文件（跳过 ' + skipped + ' 个不支持的格式）', 'warning'); }
+      return;
+    }
+    var file = newFiles.shift();
+    if (!isAllowedFile(file.name)) { skipped++; processNext(); return; }
+    var dup = files.find(function(f) { return f._origName === file.name && f._origSize === file.size; });
+    if (dup) { skipped++; processNext(); return; }
+    readFileContent(file).then(function(content) {
+      if (!content.trim()) { showToast('文件 "' + file.name + '" 内容为空，已跳过', 'warning'); skipped++; processNext(); return; }
+      if (content.length > 200000) showToast('文件 "' + file.name + '" 超过 200KB，可能超出 API 上下文限制', 'warning');
+      files.push({ id: nextId++, name: file.name, _origName: file.name, _origSize: file.size, content: content, status: STATUS.PENDING, result: '', progress: 0, error: '', selected: false });
+      added++;
+      processNext();
+    }).catch(function(e) { showToast('读取 "' + file.name + '" 失败: ' + e.message, 'error'); skipped++; processNext(); });
+  }
+  processNext();
+}
+
+function saveFile(fileId) {
+  var file = files.find(function(f) { return f.id === fileId; });
+  if (!file || !file.result) return;
+  var outName = file.name.replace(/\.\w+$/, '_ob.sql');
+  if (window.showSaveFilePicker) {
+    window.showSaveFilePicker({ suggestedName: outName, types: [{ description: 'SQL 文件', accept: { 'text/plain': ['.sql'] } }] })
+    .then(function(handle) { return handle.createWritable().then(function(w) { return w.write(file.result).then(function() { w.close(); }); }); })
+    .then(function() { showToast('已保存: ' + outName, 'success'); })
+    .catch(function(e) { if (e.name !== 'AbortError') showToast('保存失败: ' + e.message, 'error'); });
+  } else {
+    var blob = new Blob([file.result], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob); var a = document.createElement('a');
+    a.href = url; a.download = outName; a.click(); URL.revokeObjectURL(url);
+    showToast('已下载: ' + outName, 'success');
+  }
+}
+
+function saveAll() {
+  var doneFiles = files.filter(function(f) { return f.status === STATUS.DONE && f.result; });
+  if (doneFiles.length === 0) { showToast('没有已完成转换的文件可保存', 'warning'); return; }
+  doneFiles.forEach(function(f) { saveFile(f.id); });
+}
+
+// ===================================================================
+//  第 5 部分：DeepSeek API 客户端
+// ===================================================================
+function buildUserMessage(oracleCode) {
+  return '请将以下 Oracle 存储过程代码转换为 OceanBase Oracle 模式兼容代码，并进行性能优化。严格按照输出格式要求：先输出修改摘要表格，再输出逐段对比，最后输出完整转换后代码和注意事项。\n\n```sql\n' + oracleCode + '\n```';
+}
+
+function convertFile(fileId) {
+  var file = files.find(function(f) { return f.id === fileId; });
+  if (!file) return;
+  file.status = STATUS.CONVERTING; file.progress = 0; file.error = ''; file.result = '';
+  renderFileList(); updateStatusBar();
+  if (selectedFileId === fileId) {
+    document.getElementById('resultCode').style.display = 'none';
+    document.getElementById('resultEmpty').style.display = 'flex';
+    document.getElementById('resultEmpty').querySelector('div:last-child').textContent = '转换中...';
+  }
+  var controller = new AbortController();
+  abortControllers[fileId] = controller;
+  console.log('[OB] 开始转换:', file.name, file.content.length, '字符');
+  fetch(settings.apiEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + settings.apiKey },
+    body: JSON.stringify({ model: settings.model, max_tokens: settings.maxTokens, stream: true, messages: [{ role: 'system', content: SKILL_CONTENT }, { role: 'user', content: buildUserMessage(file.content) }] }),
+    signal: controller.signal
+  }).then(function(response) {
+    console.log('[OB] 响应状态:', response.status);
+    if (!response.ok) {
+      return response.text().then(function(errText) {
+        var errMsg;
+        if (response.status === 401) errMsg = 'API Key 无效 (401)，请在设置中检查 Key 是否正确';
+        else if (response.status === 403) errMsg = 'API Key 无权访问 (403)，请检查账户余额或权限';
+        else if (response.status === 429) errMsg = '请求过于频繁 (429)，请稍后重试';
+        else if (response.status === 413) errMsg = '文件过大，超出 API 上下文限制 (413)';
+        else if (response.status >= 500) errMsg = 'DeepSeek 服务端错误 (' + response.status + ')，请稍后重试';
+        else errMsg = 'API 错误 (' + response.status + '): ' + (errText || '').slice(0, 200);
+        throw new Error(errMsg);
+      });
+    }
+    return streamResponse(response, fileId);
+  }).then(function() {
+    console.log('[OB] 转换完成:', file.name);
+  }).catch(function(e) {
+    console.error('[OB] 异常:', e.name, e.message);
+    if (e.name === 'AbortError') { file.status = STATUS.PENDING; file.error = '已取消'; }
+    else if (e.message && (e.message.indexOf('Failed to fetch') >= 0 || e.message.indexOf('NetworkError') >= 0)) {
+      file.status = STATUS.ERROR; file.error = '网络请求被浏览器拦截(CORS限制)。请用Chrome/Edge打开此页面，按F12查看控制台详情';
+    } else {
+      file.status = STATUS.ERROR; file.error = e.message || '未知错误';
+      if (file.result) file.result += '\n\n--- 转换中断: ' + (e.message || '') + ' ---';
+    }
+  }).then(function() {
+    delete abortControllers[fileId]; renderFileList(); updateStatusBar();
+    if (selectedFileId === fileId) renderCodePanel(fileId);
+  });
+}
+
+function streamResponse(response, fileId) {
+  var file = files.find(function(f) { return f.id === fileId; });
+  var reader = response.body.getReader();
+  var decoder = new TextDecoder();
+  var buffer = '', resultText = '';
+  var estimatedLength = Math.max(1000, file.content.length * 2);
+
+  function pump() {
+    return reader.read().then(function(result) {
+      if (result.done) { file.result = resultText; file.status = STATUS.DONE; file.progress = 100; return; }
+      buffer += decoder.decode(result.value, { stream: true }).replace(/\r/g, '');
+      var lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (var i = 0; i < lines.length; i++) {
+        var trimmed = lines[i].trim();
+        if (trimmed.indexOf('data: ') !== 0) continue;
+        var data = trimmed.slice(6).trim();
+        if (!data || data === '[DONE]') continue;
+        try {
+          var json = JSON.parse(data);
+          if (json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content) {
+            resultText += json.choices[0].delta.content;
+            file.result = resultText;
+            file.progress = Math.min(95, Math.floor(resultText.length / estimatedLength * 100));
+            if (!file._pendingRender) {
+              file._pendingRender = true;
+              requestAnimationFrame(function() {
+                file._pendingRender = false;
+                if (selectedFileId === fileId) renderResultPane(fileId);
+                updateFileCardProgress(fileId);
+              });
+            }
+          }
+        } catch(ignore) {}
+      }
+      return pump();
+    });
+  }
+  return pump();
+}
+
+function cancelConversion(fileId) { var ctrl = abortControllers[fileId]; if (ctrl) ctrl.abort(); }
+
+// ===================================================================
+//  第 6 部分：批量转换队列
+// ===================================================================
+function convertSelected() {
+  var selected = files.filter(function(f) { return f.selected && f.status !== STATUS.DONE; });
+  if (selected.length === 0) { showToast('请先选择要转换的文件', 'warning'); return; }
+  if (!settings.apiKey) { showToast('请先在设置中填入 API Key', 'warning'); openSettings(); return; }
+  isConverting = true;
+  var btn = document.getElementById('btnConvert');
+  btn.textContent = '取消'; btn.classList.add('btn-danger'); btn.onclick = cancelAllConversions;
+  updateStatusBar();
+  selected.forEach(function(f) { f.status = STATUS.PENDING; f.result = ''; f.progress = 0; f.error = ''; });
+  renderFileList();
+  processQueue(0);
+
+  function processQueue(index) {
+    if (index >= selected.length || !isConverting) { finishBatchConversion(); return; }
+    convertFile(selected[index].id);
+    var check = setInterval(function() {
+      var file = files.find(function(f) { return f.id === selected[index].id; });
+      if (file.status === STATUS.DONE || file.status === STATUS.ERROR) { clearInterval(check); processQueue(index + 1); }
+    }, 500);
+  }
+}
+
+function cancelAllConversions() {
+  isConverting = false;
+  Object.keys(abortControllers).forEach(function(id) { abortControllers[id].abort(); });
+  finishBatchConversion();
+}
+
+function finishBatchConversion() {
+  isConverting = false;
+  var btn = document.getElementById('btnConvert');
+  btn.textContent = '▶ 转换选中'; btn.classList.remove('btn-danger'); btn.onclick = convertSelected;
+  var done = files.filter(function(f) { return f.status === STATUS.DONE; }).length;
+  var err = files.filter(function(f) { return f.status === STATUS.ERROR; }).length;
+  if (done > 0 || err > 0) showToast('转换完成: ' + done + ' 成功, ' + err + ' 失败', err > 0 ? 'warning' : 'success');
+  updateStatusBar(); updateSaveAllButton();
+}
+
+// ===================================================================
+//  第 7 部分：UI 渲染
+// ===================================================================
+function renderFileList() {
+  var container = document.getElementById('fileList');
+  if (files.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-secondary);font-size:13px;">拖拽文件或点击上方区域开始</div>';
+    document.getElementById('fileCount').textContent = '暂无文件'; document.getElementById('btnSaveAll').disabled = true; return;
+  }
+  document.getElementById('fileCount').textContent = '共 ' + files.length + ' 个文件';
+  container.innerHTML = files.map(function(f) {
+    var sel = selectedFileId === f.id;
+    var dot = { pending: '#7A7A90', converting: '#3498DB', done: '#27AE60', error: '#E74C3C' }[f.status] || '#7A7A90';
+    var bar = f.status === STATUS.CONVERTING ? '<div class="progress-bar-mini"><div class="fill" style="width:' + f.progress + '%"></div></div>' : '';
+    return '<div class="file-card' + (sel ? ' selected' : '') + '" onclick="selectFile(' + f.id + ')">'
+      + '<input type="checkbox" class="checkbox" ' + (f.selected ? 'checked' : '') + ' onclick="event.stopPropagation();toggleFileSelection(' + f.id + ')">'
+      + '<div class="file-info"><div class="file-name" title="' + escHtml(f.name) + '">' + escHtml(f.name) + '</div>'
+      + '<div class="file-meta"><span class="status-dot" style="background:' + dot + ';"></span><span class="status-' + f.status + '">' + STATUS_TEXT[f.status] + '</span>'
+      + (f.error ? ' - ' + escHtml(f.error.slice(0, 60)) : '') + '</div>' + bar + '</div>'
+      + '<div class="file-card-actions" onclick="event.stopPropagation()">'
+      + (f.status === STATUS.CONVERTING ? '<button class="btn-secondary" onclick="cancelConversion(' + f.id + ')">取消</button>' : '')
+      + (f.status === STATUS.ERROR ? '<button class="btn-secondary" onclick="retryFile(' + f.id + ')">重试</button>' : '')
+      + (f.status === STATUS.DONE ? '<button class="btn-success" onclick="saveFile(' + f.id + ')">保存</button>' : '')
+      + '</div></div>';
+  }).join('');
+  updateSaveAllButton();
+}
+
+function updateFileCardProgress(fileId) {
+  var file = files.find(function(f) { return f.id === fileId; }); if (!file) return;
+  if (file.status !== STATUS.CONVERTING) return;
+  var cards = document.getElementById('fileList').querySelectorAll('.file-card');
+  var index = files.findIndex(function(f) { return f.id === fileId; });
+  if (index >= 0 && index < cards.length) {
+    var fill = cards[index].querySelector('.progress-bar-mini .fill'); if (fill) fill.style.width = file.progress + '%';
+    var meta = cards[index].querySelector('.file-meta');
+    if (meta) meta.innerHTML = '<span class="status-dot" style="background:#3498DB;"></span><span class="status-converting">转换中 ' + file.progress + '%</span>';
+  }
+}
+
+function selectFile(fileId) { selectedFileId = fileId; renderFileList(); renderCodePanel(fileId); updateSaveOneButton(); }
+
+function renderCodePanel(fileId) {
+  var file = files.find(function(f) { return f.id === fileId; }); if (!file) return;
+  document.getElementById('sourceEmpty').style.display = 'none';
+  document.getElementById('sourceCode').style.display = 'block';
+  document.getElementById('sourceCode').innerHTML = highlightSQL(file.content);
+  renderResultPane(fileId); document.getElementById('btnCopy').disabled = !file.result;
+}
+
+function renderResultPane(fileId) {
+  var file = files.find(function(f) { return f.id === fileId; }); if (!file) return;
+  var re = document.getElementById('resultEmpty'), rp = document.getElementById('resultCode');
+  if (file.result) { re.style.display = 'none'; rp.style.display = 'block'; rp.innerHTML = highlightSQL(file.result); }
+  else if (file.status === STATUS.CONVERTING) { re.style.display = 'flex'; re.querySelector('div:last-child').textContent = '转换中...'; rp.style.display = 'none'; }
+  else { re.style.display = 'flex'; re.querySelector('div:last-child').textContent = '点击「转换选中」开始转换'; rp.style.display = 'none'; }
+}
+
+function switchView(view) {
+  currentView = view;
+  var tabs = document.querySelectorAll('.code-toolbar .tab');
+  ['split','source','result'].forEach(function(v, i) { tabs[i].classList.toggle('active', v === view); });
+  var sp = document.getElementById('sourcePane'), rp = document.getElementById('resultPane');
+  if (view === 'split') { sp.style.display = ''; rp.style.display = ''; }
+  else if (view === 'source') { sp.style.display = ''; rp.style.display = 'none'; }
+  else { sp.style.display = 'none'; rp.style.display = ''; }
+}
+
+function updateStatusBar() {
+  var total = files.length, done = files.filter(function(f) { return f.status === STATUS.DONE; }).length;
+  var converting = files.filter(function(f) { return f.status === STATUS.CONVERTING; }).length;
+  var err = files.filter(function(f) { return f.status === STATUS.ERROR; }).length;
+  var t = '就绪';
+  if (isConverting) t = '正在转换 ' + converting + ' 个文件';
+  else if (done > 0) t = '转换完成: ' + done + ' 成功, ' + err + ' 失败';
+  document.getElementById('statusText').textContent = t;
+  document.getElementById('statusSummary').textContent = total > 0 ? '共 ' + total + ' 个文件 | ' + done + ' 已完成 | ' + err + ' 失败' : '';
+}
+
+function updateSaveAllButton() { document.getElementById('btnSaveAll').disabled = !files.some(function(f) { return f.status === STATUS.DONE && f.result; }); }
+function updateSaveOneButton() { var f = files.find(function(x) { return x.id === selectedFileId; }); document.getElementById('btnSaveOne').disabled = !f || !f.result; }
+
+function copyResult() {
+  var f = files.find(function(x) { return x.id === selectedFileId; }); if (!f || !f.result) return;
+  navigator.clipboard.writeText(f.result).then(function() { showToast('已复制到剪贴板', 'success'); }).catch(function(e) { showToast('复制失败: ' + e.message, 'error'); });
+}
+function saveCurrent() { if (selectedFileId) saveFile(selectedFileId); }
+
+// ===================================================================
+//  第 8 部分：语法高亮
+// ===================================================================
+function highlightSQL(code) {
+  if (!code) return '';
+  var html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  html = html.replace(/^(--\s*\[OB迁移\].*)$/gm, '<span class="ob">$1</span>');
+  html = html.replace(/^(--\s*(?!\[OB迁移\]).*)$/gm, '<span class="cmt">$1</span>');
+  html = html.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="cmt">$1</span>');
+  html = html.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="str">$1</span>');
+  var kws = ['CREATE','OR','REPLACE','PROCEDURE','FUNCTION','PACKAGE','BODY','DECLARE','BEGIN','END','EXCEPTION','WHEN','THEN','ELSE','ELSIF','IF','LOOP','FOR','WHILE','EXIT','RETURN','CURSOR','IS','AS','IN','OUT','NOCOPY','DEFAULT','NULL','NOT','SELECT','FROM','WHERE','AND','JOIN','ON','ORDER','BY','GROUP','HAVING','UNION','ALL','DISTINCT','INSERT','INTO','VALUES','UPDATE','SET','DELETE','MERGE','USING','COMMIT','ROLLBACK','EXECUTE','IMMEDIATE','RAISE','RAISE_APPLICATION_ERROR','PRAGMA','BULK','COLLECT','FORALL','LIMIT','OPEN','FETCH','CLOSE','REF','SYS_REFCURSOR','ROWID','ROWTYPE','NEXTVAL','CURRVAL','CASE','NVL','NVL2','DECODE','TO_CHAR','TO_DATE','TO_NUMBER','SYSDATE','ADD_MONTHS','VARCHAR2','NUMBER','INTEGER','DATE','TIMESTAMP','CLOB','BLOB','BOOLEAN','PLS_INTEGER','CHAR','FLOAT','RAW','TRUE','FALSE','LIKE','BETWEEN','EXISTS','COUNT','SUM','AVG','MAX','MIN','COALESCE','SUBSTR','INSTR','LENGTH','TRIM','UPPER'];
+  kws.forEach(function(k) { html = html.replace(new RegExp('\\b(' + k + ')\\b', 'gi'), '<span class="kw">$1</span>'); });
+  html = html.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="num">$1</span>');
+  return html;
+}
+
+// ===================================================================
+//  第 9 部分：Toast 通知
+// ===================================================================
+function showToast(msg, type) {
+  type = type || 'info';
+  var t = document.createElement('div'); t.className = 'toast ' + type; t.textContent = msg;
+  document.getElementById('toastContainer').appendChild(t);
+  setTimeout(function() { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(function() { t.remove(); }, 300); }, 3000);
+}
+
+// ===================================================================
+//  第 10 部分：设置面板
+// ===================================================================
+function openSettings() {
+  document.getElementById('setApiKey').value = settings.rememberKey ? settings.apiKey : '';
+  document.getElementById('setModel').value = settings.model;
+  document.getElementById('setMaxTokens').value = settings.maxTokens;
+  document.getElementById('setApiEndpoint').value = settings.apiEndpoint;
+  document.getElementById('setRememberKey').checked = settings.rememberKey;
+  document.getElementById('setShowKey').checked = false;
+  document.getElementById('setApiKey').type = 'password';
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+function toggleKeyVisibility() { document.getElementById('setApiKey').type = document.getElementById('setShowKey').checked ? 'text' : 'password'; }
+function onEndpointChange() {
+  var v = document.getElementById('setApiEndpoint').value;
+  var note = document.getElementById('endpointNote');
+  if (v.indexOf('localhost') >= 0) { note.textContent = '使用本地代理，需先运行: python proxy_server.py'; note.style.color = 'var(--color-success)'; }
+  else { note.textContent = 'DeepSeek 直连可能有 CORS 限制，如失败请切回本地代理'; note.style.color = 'var(--color-warning)'; }
+}
+function saveSettings() {
+  settings.apiKey = document.getElementById('setApiKey').value.trim();
+  settings.model = document.getElementById('setModel').value;
+  settings.maxTokens = parseInt(document.getElementById('setMaxTokens').value) || 8192;
+  settings.apiEndpoint = document.getElementById('setApiEndpoint').value;
+  settings.rememberKey = document.getElementById('setRememberKey').checked;
+  saveSettingsToStorage(settings);
+  document.getElementById('settingsOverlay').classList.remove('show');
+  showToast('设置已保存', 'success');
+}
+function testConnection() {
+  var key = document.getElementById('setApiKey').value.trim();
+  if (!key) { showToast('请先输入 API Key', 'warning'); return; }
+  showToast('正在测试连接...', 'info');
+  fetch(settings.apiEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({ model: settings.model, max_tokens: 10, messages: [{ role: 'user', content: 'OK' }] })
+  }).then(function(r) {
+    if (r.ok) showToast('连接成功！API Key 有效', 'success');
+    else r.text().then(function(e) { showToast('连接失败 (' + r.status + '): ' + e.slice(0, 100), 'error'); });
+  }).catch(function(e) { showToast('连接失败: ' + e.message, 'error'); });
+}
+function clearAllData() {
+  showConfirm('确定要清除所有数据吗？（包括文件列表和转换结果）', function() {
+    files = []; selectedFileId = null; abortControllers = {}; isConverting = false;
+    renderFileList(); renderEmptyPanels(); updateStatusBar(); showToast('所有数据已清除', 'success');
+  });
+}
+
+// ===================================================================
+//  第 11 部分：工具函数
+// ===================================================================
+function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function toggleFileSelection(id) { var f = files.find(function(x) { return x.id === id; }); if (f) { f.selected = !f.selected; renderFileList(); } }
+function selectAll() { files.forEach(function(f) { f.selected = true; }); renderFileList(); }
+function deselectAll() { files.forEach(function(f) { f.selected = false; }); renderFileList(); }
+function retryFile(id) { var f = files.find(function(x) { return x.id === id; }); if (f) { f.selected = true; f.status = STATUS.PENDING; f.result = ''; f.progress = 0; f.error = ''; renderFileList(); convertFile(id); } }
+function renderEmptyPanels() {
+  document.getElementById('sourceCode').style.display = 'none'; document.getElementById('sourceEmpty').style.display = 'flex';
+  document.getElementById('resultCode').style.display = 'none'; document.getElementById('resultEmpty').style.display = 'flex';
+  document.getElementById('resultEmpty').querySelector('div:last-child').textContent = '点击「转换选中」开始转换';
+  document.getElementById('btnCopy').disabled = true; document.getElementById('btnSaveOne').disabled = true;
+}
+function showConfirm(m, cb) {
+  document.getElementById('confirmMsg').textContent = m; document.getElementById('confirmOverlay').classList.add('show');
+  document.getElementById('confirmYes').onclick = function() { document.getElementById('confirmOverlay').classList.remove('show'); cb(); };
+  document.getElementById('confirmNo').onclick = function() { document.getElementById('confirmOverlay').classList.remove('show'); };
+}
+
+// ===================================================================
+//  第 12 部分：事件绑定与初始化
+// ===================================================================
+var dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', function() { dz.classList.remove('dragover'); });
+dz.addEventListener('drop', handleDrop);
+dz.addEventListener('click', handleFilePicker);
+document.addEventListener('dragover', function(e) { e.preventDefault(); });
+document.addEventListener('drop', function(e) { e.preventDefault(); if (e.target !== dz && !dz.contains(e.target) && e.dataTransfer.files.length > 0) handleDrop(e); });
+document.getElementById('settingsOverlay').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+
+settings = loadSettings();
+renderFileList();
+updateStatusBar();
+if (!settings.apiKey) setTimeout(function() { showToast('请先在设置中填入 DeepSeek API Key', 'info'); }, 500);
+</script>
+</body>
+</html>
