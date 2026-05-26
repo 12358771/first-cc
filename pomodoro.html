@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番茄钟</title>
+<!--
+  桌面番茄钟 - 单文件 HTML 应用
+  ==============================
+  技术栈: HTML + CSS + 原生 JavaScript
+  数据存储: 浏览器 localStorage（配置 + 历史记录）
+  提醒方式: Web Notification API（桌面通知） + Web Audio API（提示音）
+  无需任何依赖，浏览器打开即用。
+
+  核心设计:
+  - 状态机驱动: idle → working → short_break/long_break → idle（循环）
+  - 每秒 tick: setInterval 驱动倒计时，精度 ±50ms（浏览器定时器限制）
+  - 持久化: 配置和历史记录分两个 key 存入 localStorage
+  - 统计: 按 today / 本周(7天) / 本月(30天) 三个维度汇总
+-->
+<style>
+  /* ==================== CSS 变量（设计令牌） ==================== */
+  :root {
+    /* 各状态对应的主题色 */
+    --color-work: #E74C3C;        /* 工作状态：红色 */
+    --color-short-break: #27AE60; /* 短休息：绿色 */
+    --color-long-break: #2980B9;  /* 长休息：蓝色 */
+    --color-idle: #7F8C8D;        /* 空闲：灰色 */
+    --color-paused: #F39C12;      /* 暂停：橙色 */
+
+    /* 页面背景与卡片 */
+    --bg: #F5F6FA;
+    --card-bg: #FFFFFF;
+
+    /* 文字颜色 */
+    --text: #2C3E50;
+    --text-secondary: #95A5A6;
+
+    /* 卡片阴影与圆角 */
+    --shadow: 0 2px 16px rgba(0,0,0,0.08);
+    --radius: 16px;
+  }
+
+  /* ==================== 全局重置 ==================== */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);          /* 浅灰背景 */
+    color: var(--text);
+    display: flex;
+    justify-content: center;        /* 水平居中 */
+    align-items: center;            /* 垂直居中 */
+    min-height: 100vh;              /* 撑满视口高度 */
+    user-select: none;              /* 禁止选中文字（更像原生 App） */
+    -webkit-user-select: none;
+  }
+
+  /* ==================== 主卡片 ==================== */
+  .app {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 48px 40px 36px;
+    text-align: center;
+    width: 360px;                   /* 固定宽度，简洁居中 */
+  }
+
+  /* ==================== 状态标签 ==================== */
+  .state-label {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+    transition: color 0.3s;         /* 状态切换时颜色渐变 */
+  }
+
+  /* ==================== 计时器数字 ==================== */
+  .timer {
+    font-family: "Consolas", "Cascadia Code", "Courier New", monospace;
+    font-size: 72px;                /* 大号等宽字体 */
+    font-weight: bold;
+    letter-spacing: 4px;
+    line-height: 1;
+    margin-bottom: 16px;
+    transition: color 0.3s;
+  }
+
+  /* ==================== 进度条 ==================== */
+  .progress-container {
+    height: 6px;
+    background: #ECF0F1;           /* 进度条底色（轨道） */
+    border-radius: 3px;
+    margin-bottom: 20px;
+    overflow: hidden;              /* 隐藏溢出，保证圆角 */
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: var(--color-idle);
+    border-radius: 3px;
+    /* width 用 1s 线性过渡，配合每秒更新，视觉上平滑 */
+    transition: width 1s linear, background 0.3s;
+    width: 0%;
+  }
+
+  /* ==================== 会话信息行 ==================== */
+  .session-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  .session-info span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ==================== 按钮通用样式 ==================== */
+  .controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: all 0.15s;
+    outline: none;
+  }
+
+  button:active { transform: scale(0.96); }  /* 点击时微缩反馈 */
+
+  /* 主按钮（开始/继续）：蓝色实心 */
+  .btn-primary {
+    background: #3498DB;
+    color: white;
+    min-width: 90px;
+  }
+  .btn-primary:hover { background: #2980B9; }
+  .btn-primary:disabled { background: #BDC3C7; cursor: not-allowed; }
+
+  /* 次要按钮（暂停/重置）：浅灰 */
+  .btn-secondary {
+    background: #ECF0F1;
+    color: var(--text);
+    min-width: 80px;
+  }
+  .btn-secondary:hover { background: #D5DBDB; }
+  .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* 底部工具按钮（设置/统计） */
+  .bottom-btns {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .btn-icon {
+    background: none;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .btn-icon:hover { background: #ECF0F1; color: var(--text); }
+
+  /* ==================== 弹窗遮罩层 ==================== */
+  .overlay {
+    display: none;                  /* 默认隐藏 */
+    position: fixed;
+    inset: 0;                       /* 等价于 top/right/bottom/left: 0 */
+    background: rgba(0,0,0,0.3);   /* 半透明黑色遮罩 */
+    z-index: 100;                   /* 确保覆盖在主卡片之上 */
+    justify-content: center;
+    align-items: center;
+  }
+  .overlay.show { display: flex; } /* JS 通过添加 .show 显示 */
+
+  /* 弹窗面板 */
+  .panel {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.15);  /* 比主卡片更重的阴影 */
+    padding: 28px 28px 24px;
+    width: 360px;
+    max-height: 80vh;              /* 最高 80% 视口高度 */
+    overflow-y: auto;              /* 内容超出时滚动 */
+  }
+
+  .panel h2 {
+    font-size: 18px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  /* ==================== 设置项行 ==================== */
+  .setting-row {
+    display: flex;
+    justify-content: space-between; /* 标签左、输入右 */
+    align-items: center;
+    padding: 8px 0;
+    font-size: 14px;
+  }
+
+  .setting-row label { color: var(--text); }
+
+  .setting-row input[type="number"] {
+    width: 64px;
+    padding: 6px 8px;
+    border: 1.5px solid #D5DBDB;
+    border-radius: 6px;
+    font-size: 14px;
+    text-align: center;
+    font-family: inherit;
+    outline: none;
+  }
+  .setting-row input[type="number"]:focus { border-color: #3498DB; }
+
+  /* ==================== 开关切换组件 ==================== */
+  .toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;                /* 不被 flex 压缩 */
+  }
+  .toggle input { display: none; }  /* 隐藏原生 checkbox */
+
+  /* 开关背景槽 */
+  .toggle .slider {
+    position: absolute;
+    inset: 0;
+    background: #BDC3C7;           /* 关闭态灰色 */
+    border-radius: 12px;           /* 胶囊形 */
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  /* 开关圆点 */
+  .toggle .slider::after {
+    content: "";
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;     /* 滑动动画 */
+  }
+
+  /* 开启态：背景变蓝，圆点右移 20px */
+  .toggle input:checked + .slider { background: #3498DB; }
+  .toggle input:checked + .slider::after { transform: translateX(20px); }
+
+  .panel .btn-primary { width: 100%; margin-top: 16px; }
+
+  /* ==================== 统计面板 ==================== */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;  /* 三列等宽 */
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .stat-card {
+    background: #F8F9FA;
+    border-radius: 10px;
+    padding: 12px 8px;
+    text-align: center;
+  }
+
+  .stat-card .num {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .stat-card .lbl {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* 最近记录列表 */
+  .record-list {
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  .record-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-bottom: 1px solid #F1F1F1;
+  }
+  .record-row:last-child { border-bottom: none; }
+
+  .divider {
+    height: 1px;
+    background: #ECF0F1;
+    margin: 12px 0;
+  }
+</style>
+</head>
+<body>
+
+<!--
+  ==================== 主界面 ====================
+  结构从上到下:
+  1. 状态标签（专注工作中 / 短休息 / 长休息 / 已暂停）
+  2. 计时器数字（MM:SS 格式）
+  3. 进度条（线性，0-100%）
+  4. 会话信息（今日完成数 + 当前轮次）
+  5. 控制按钮（开始/继续 + 暂停 + 重置）
+  6. 底部工具栏（设置 + 统计）
+-->
+<div class="app">
+  <div class="state-label" id="stateLabel">准备开始</div>
+  <div class="timer" id="timer">25:00</div>
+  <div class="progress-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+  <div class="session-info">
+    <span id="todayCount">今日: 0 个</span>
+    <span id="sessionRound">第 1 轮</span>
+  </div>
+  <div class="controls">
+    <button class="btn-primary" id="btnStart" onclick="onStart()">开始</button>
+    <button class="btn-secondary" id="btnPause" onclick="onPause()" disabled>暂停</button>
+    <button class="btn-secondary" id="btnReset" onclick="onReset()">重置</button>
+  </div>
+  <div class="bottom-btns">
+    <button class="btn-icon" onclick="openSettings()">&#9881; 设置</button>
+    <button class="btn-icon" onclick="openStats()">&#128200; 统计</button>
+  </div>
+</div>
+
+<!--
+  ==================== 设置弹窗 ====================
+  6 个可配置项:
+  - 工作时长（默认 25 分钟）
+  - 短休息时长（默认 5 分钟）
+  - 长休息时长（默认 15 分钟）
+  - 长休息间隔（默认每 4 个番茄后）
+  - 自动开始下一轮（开关）
+  - 声音提醒（开关）
+-->
+<div class="overlay" id="settingsOverlay">
+  <div class="panel">
+    <h2>设置</h2>
+    <div class="setting-row">
+      <label>工作时长 (分钟)</label>
+      <input type="number" id="setWork" min="1" max="120" value="25">
+    </div>
+    <div class="setting-row">
+      <label>短休息时长 (分钟)</label>
+      <input type="number" id="setShortBreak" min="1" max="60" value="5">
+    </div>
+    <div class="setting-row">
+      <label>长休息时长 (分钟)</label>
+      <input type="number" id="setLongBreak" min="1" max="60" value="15">
+    </div>
+    <div class="setting-row">
+      <label>长休息间隔 (轮)</label>
+      <input type="number" id="setLongInterval" min="1" max="10" value="4">
+    </div>
+    <div class="setting-row">
+      <label>自动开始下一轮</label>
+      <label class="toggle">
+        <input type="checkbox" id="setAutoStart">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="setting-row">
+      <label>声音提醒</label>
+      <label class="toggle">
+        <input type="checkbox" id="setSound" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <button class="btn-primary" onclick="saveSettings()">保存</button>
+  </div>
+</div>
+
+<!--
+  ==================== 统计弹窗 ====================
+  展示:
+  - 6 个统计卡片（今日/本周/本月 的 番茄数 + 分钟数）
+  - 最近 10 条完成记录列表
+-->
+<div class="overlay" id="statsOverlay">
+  <div class="panel">
+    <h2>统计</h2>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="num" id="statToday">0</div>
+        <div class="lbl">今日番茄</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="statWeek">0</div>
+        <div class="lbl">本周番茄</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="statMonth">0</div>
+        <div class="lbl">本月番茄</div>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="num" id="statTodayMin">0</div>
+        <div class="lbl">今日分钟</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="statWeekMin">0</div>
+        <div class="lbl">本周分钟</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="statMonthMin">0</div>
+        <div class="lbl">本月分钟</div>
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">最近记录</div>
+    <div class="record-list" id="recordList"></div>
+    <button class="btn-primary" onclick="closeStats()">关闭</button>
+  </div>
+</div>
+
+<script>
+// ===================================================================
+//  第 1 部分：枚举常量定义
+// ===================================================================
+
+// 定时器的五种状态（状态机）
+const STATES = {
+  IDLE: 'idle',               // 空闲/就绪
+  WORKING: 'working',         // 专注工作中
+  SHORT_BREAK: 'short_break', // 短休息
+  LONG_BREAK: 'long_break',   // 长休息
+  PAUSED: 'paused'            // 已暂停
+};
+
+// 每种状态对应的中文标签（显示在 UI 顶部）
+const LABELS = {
+  idle: '准备开始',
+  working: '专注工作中',
+  short_break: '短休息',
+  long_break: '长休息',
+  paused: '已暂停'
+};
+
+// 每种状态对应的主题色（用于状态标签、计时器数字、进度条）
+const COLORS = {
+  idle: '#7F8C8D',
+  working: '#E74C3C',
+  short_break: '#27AE60',
+  long_break: '#2980B9',
+  paused: '#F39C12'
+};
+
+// ===================================================================
+//  第 2 部分：运行时变量（全局状态）
+// ===================================================================
+
+let state = STATES.IDLE;         // 当前状态
+let prePauseState = null;        // 暂停之前的状态（用于恢复时还原）
+let remaining = 0;               // 剩余秒数
+let total = 0;                   // 当前会话总秒数（用于进度条百分比）
+let completedSessions = 0;       // 已完成的番茄数（用于判断长休息时机）
+let tickTimer = null;            // setInterval 返回的定时器 ID
+
+// ===================================================================
+//  第 3 部分：配置读写（localStorage）
+// ===================================================================
+
+/**
+ * 从 localStorage 加载配置对象。
+ * 如果从未保存过配置或读取失败，返回空对象（后续由 getConfig 填充默认值）。
+ */
+function loadConfig() {
+  try {
+    return JSON.parse(localStorage.getItem('pomodoro_config')) || {};
+  } catch(e) {
+    return {};
+  }
+}
+
+/** 将配置对象序列化为 JSON 字符串存入 localStorage */
+function saveConfig(cfg) {
+  localStorage.setItem('pomodoro_config', JSON.stringify(cfg));
+}
+
+/**
+ * 获取完整配置，缺失的 key 用默认值填充。
+ * 这样做的好处是：新增配置项时不需要迁移旧数据。
+ *
+ * @returns {{ workDuration: number, shortBreakDuration: number,
+ *             longBreakDuration: number, sessionsBeforeLongBreak: number,
+ *             autoStartNext: boolean, soundEnabled: boolean }}
+ */
+function getConfig() {
+  const c = loadConfig();
+  return {
+    workDuration: c.workDuration || 25,                        // 工作时长（分钟）
+    shortBreakDuration: c.shortBreakDuration || 5,             // 短休息时长（分钟）
+    longBreakDuration: c.longBreakDuration || 15,              // 长休息时长（分钟）
+    sessionsBeforeLongBreak: c.sessionsBeforeLongBreak || 4,   // 每 N 个番茄后长休
+    autoStartNext: c.autoStartNext || false,                   // 是否自动开始下一轮
+    soundEnabled: c.soundEnabled !== undefined ? c.soundEnabled : true, // 是否播放声音
+  };
+}
+
+// ===================================================================
+//  第 4 部分：统计/历史记录读写（localStorage）
+// ===================================================================
+
+/**
+ * 从 localStorage 加载历史记录数组。
+ * 每条记录格式: { date: "2026-05-24", time: "14:30:00", duration: 25, type: "work" }
+ */
+function loadStats() {
+  try {
+    return JSON.parse(localStorage.getItem('pomodoro_stats')) || [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function saveStats(s) {
+  localStorage.setItem('pomodoro_stats', JSON.stringify(s));
+}
+
+/**
+ * 新增一条完成记录。
+ * @param {number} duration - 时长（分钟）
+ * @param {string} type - 类型: "work" | "short_break" | "long_break"
+ */
+function addRecord(duration, type) {
+  const s = loadStats();
+  const now = new Date();
+  s.push({
+    date: now.toISOString().slice(0, 10),   // "2026-05-24"
+    time: now.toTimeString().slice(0, 8),   // "14:30:00"
+    duration,
+    type
+  });
+  saveStats(s);
+}
+
+/**
+ * 获取最近 N 天内 type="work" 的记录。
+ * @param {number} daysBack - 往回 N 天。0 = 仅今天，7 = 最近一周，30 = 最近一月
+ * @returns {Array} 符合条件的 work 记录数组
+ */
+function getStatsForPeriod(daysBack) {
+  const s = loadStats();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);            // 计算 N 天前的日期
+  const cutoffStr = cutoff.toISOString().slice(0, 10);    // 转为 "YYYY-MM-DD"
+  return s.filter(r => r.date >= cutoffStr && r.type === 'work');
+}
+
+// ===================================================================
+//  第 5 部分：定时器状态机（核心逻辑）
+//  状态流转图:
+//
+//    IDLE ──startWork()──> WORKING ──finish()──> IDLE
+//                            │                      │
+//                            │ pause()              │ startWork()
+//                            ▼                      ▼
+//                          PAUSED ──resume()──> WORKING
+//
+//    WORKING 完成后 ──> startBreak() ──> SHORT_BREAK 或 LONG_BREAK
+//    休息完成后    ──> startWork()  ──> WORKING（循环）
+//
+// ===================================================================
+
+/** 切换状态并刷新 UI */
+function setState(newState) {
+  state = newState;
+  updateUI();
+  updateButtons();
+}
+
+/**
+ * 开始一轮工作计时。
+ * - 设置状态为 WORKING
+ * - 用配置中的工作时长初始化倒计时
+ * - 启动 tick 循环
+ */
+function startWork() {
+  const cfg = getConfig();
+  state = STATES.WORKING;
+  total = cfg.workDuration * 60;     // 分钟 → 秒
+  remaining = total;
+  updateUI();
+  updateButtons();
+  ensureTicking();                   // 确保定时器在跑
+}
+
+/**
+ * 开始一轮休息计时。
+ * - completedSessions +1
+ * - 每 N 轮（sessionsBeforeLongBreak）触发一次长休息，其余为短休息
+ * - 根据类型设置不同的时长
+ */
+function startBreak() {
+  const cfg = getConfig();
+  completedSessions++;               // 累计完成的番茄数
+
+  // 判断是长休息还是短休息：完成番茄数 % 间隔 == 0 则长休
+  const isLong = completedSessions % cfg.sessionsBeforeLongBreak === 0;
+  state = isLong ? STATES.LONG_BREAK : STATES.SHORT_BREAK;
+  total = isLong
+    ? cfg.longBreakDuration * 60
+    : cfg.shortBreakDuration * 60;
+  remaining = total;
+  updateUI();
+  updateButtons();
+  ensureTicking();
+}
+
+/**
+ * 暂停当前计时。
+ * - 只有 WORKING/SHORT_BREAK/LONG_BREAK 状态才能暂停
+ * - 记录 prePauseState 以便 resume() 恢复
+ */
+function pause() {
+  if (state !== STATES.WORKING
+   && state !== STATES.SHORT_BREAK
+   && state !== STATES.LONG_BREAK) return;
+  prePauseState = state;
+  state = STATES.PAUSED;
+  updateUI();
+  updateButtons();
+}
+
+/**
+ * 从暂停恢复。
+ * - 只有 PAUSED 状态且 prePauseState 存在时才能恢复
+ * - 恢复到暂停前的状态（WORKING / SHORT_BREAK / LONG_BREAK）
+ */
+function resume() {
+  if (state !== STATES.PAUSED || !prePauseState) return;
+  state = prePauseState;
+  prePauseState = null;
+  updateUI();
+  updateButtons();
+  ensureTicking();
+}
+
+/**
+ * 重置当前计时回到 IDLE。
+ * - 弹出确认对话框防止误操作
+ * - 将计时器恢复到工作时长
+ */
+function reset() {
+  if (!confirm('确定要重置当前计时吗？')) return;
+  const cfg = getConfig();
+  state = STATES.IDLE;
+  prePauseState = null;
+  remaining = cfg.workDuration * 60;
+  total = remaining;
+  updateUI();
+  updateButtons();
+}
+
+/**
+ * 计时结束回调。
+ * 根据当前是工作还是休息执行不同操作：
+ * - 工作结束→记录 stats、通知、进入休息
+ * - 休息结束→通知、进入下一轮工作
+ * - 如果开启了 autoStartNext 则自动切换，否则停在 IDLE
+ */
+function finish() {
+  const finishedState = state;   // 保存结束前的状态
+  const cfg = getConfig();
+
+  // 记录完成事件到统计
+  if (finishedState === STATES.WORKING) {
+    addRecord(cfg.workDuration, 'work');
+  } else if (finishedState === STATES.SHORT_BREAK) {
+    addRecord(cfg.shortBreakDuration, 'short_break');
+  } else if (finishedState === STATES.LONG_BREAK) {
+    addRecord(cfg.longBreakDuration, 'long_break');
+  }
+
+  // 弹出桌面通知
+  notify(finishedState);
+
+  // 播放提示音
+  if (cfg.soundEnabled) playBeep();
+
+  // 自动开始下一轮 或 停在空闲
+  if (cfg.autoStartNext) {
+    if (finishedState === STATES.WORKING) {
+      startBreak();    // 工作完→休息
+    } else {
+      startWork();     // 休息完→工作
+    }
+  } else {
+    state = STATES.IDLE;
+    prePauseState = null;
+    if (finishedState === STATES.WORKING) {
+      remaining = cfg.workDuration * 60;
+      total = remaining;
+    }
+    updateUI();
+    updateButtons();
+  }
+}
+
+/**
+ * 每秒执行一次（由 setInterval 驱动）。
+ * - 仅在运行态（WORKING/SHORT_BREAK/LONG_BREAK）执行倒计时
+ * - remaining 减 1，刷新显示和进度条
+ * - remaining 归零时调用 finish()
+ */
+function tick() {
+  if (state !== STATES.WORKING
+   && state !== STATES.SHORT_BREAK
+   && state !== STATES.LONG_BREAK) return;
+  if (remaining <= 0) return;
+
+  remaining--;
+  updateTimerDisplay();
+  updateProgress();
+
+  if (remaining <= 0) finish();   // 倒计时结束
+}
+
+/**
+ * 确保 setInterval 定时器已启动（防止重复启动）。
+ * 使用 1000ms 间隔（浏览器下实际精度约 ±50ms，对番茄钟完全够用）。
+ */
+function ensureTicking() {
+  if (tickTimer) return;            // 已有定时器则不重复创建
+  tickTimer = setInterval(tick, 1000);
+}
+
+// ===================================================================
+//  第 6 部分：通知与声音
+// ===================================================================
+
+/**
+ * 发送桌面通知。
+ * 使用浏览器原生 Notification API。
+ * 首次使用时浏览器会弹出权限请求（见 requestNotificationPermission）。
+ */
+function notify(finishedState) {
+  const msg = finishedState === STATES.WORKING
+    ? '工作完成！休息一下吧。'
+    : finishedState === STATES.SHORT_BREAK
+      ? '短休息结束，开始工作！'
+      : '长休息结束，开始工作！';
+
+  // 仅当用户已授权通知权限时才发送
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('番茄钟提醒', {
+      body: msg,
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="80" font-size="80">🍅</text></svg>'
+    });
+  }
+}
+
+/** 页面加载时请求通知权限（如果还没决定过） */
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+// ===================================================================
+//  声音：Web Audio API 生成提示音
+//  ===================================================================
+
+let audioCtx = null;   // AudioContext 实例（延迟初始化，因为浏览器要求用户交互后才能创建）
+
+/**
+ * 播放一个短促的提示音（880Hz 正弦波，持续 0.5 秒渐弱）。
+ * 使用 Web Audio API 而不用 <audio> 标签的好处：
+ * - 无需外部音频文件
+ * - 可以精确控制频率、波形、包络
+ */
+function playBeep() {
+  try {
+    // 延迟创建 AudioContext（某些浏览器限制必须在用户手势后）
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const osc = audioCtx.createOscillator();   // 振荡器（产生波形）
+    const gain = audioCtx.createGain();         // 增益节点（控制音量）
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);        // 连接到扬声器
+
+    osc.type = 'sine';                          // 正弦波（音色柔和）
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime);  // 880Hz（A5 音高）
+
+    // 音量包络：0.3 → 0.01 指数衰减（渐弱效果）
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.5);      // 0.5 秒后停止
+  } catch(e) {
+    // 静默处理（AudioContext 可能因浏览器策略被阻止）
+  }
+}
+
+// ===================================================================
+//  第 7 部分：UI 更新函数
+// ===================================================================
+
+/**
+ * 格式化秒数为 MM:SS 字符串。
+ * @param {number} s - 总秒数
+ * @returns {string} 例如 "25:00"、"04:59"
+ */
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+}
+
+/** 更新计时器数字和页面标题 */
+function updateTimerDisplay() {
+  document.getElementById('timer').textContent = formatTime(remaining);
+  // 同步更新浏览器标签页标题，让用户在不切换窗口时也能看到时间
+  document.title = '番茄钟 - ' + LABELS[state] + ' ' + formatTime(remaining);
+}
+
+/** 更新进度条宽度和颜色 */
+function updateProgress() {
+  const bar = document.getElementById('progressBar');
+  if (total > 0) {
+    // 已过时间 / 总时间 = (total - remaining) / total
+    bar.style.width = ((total - remaining) / total * 100) + '%';
+  } else {
+    bar.style.width = '0%';
+  }
+  bar.style.background = COLORS[state];
+}
+
+/**
+ * 全量刷新 UI：状态标签、计时器、进度条、统计摘要。
+ * 在状态切换时调用。
+ */
+function updateUI() {
+  document.getElementById('stateLabel').textContent = LABELS[state];
+  document.getElementById('stateLabel').style.color = COLORS[state];
+  document.getElementById('timer').style.color = COLORS[state];
+
+  // IDLE 状态时重置计时器为工作时长（处理设置变更后的场景）
+  if (state === STATES.IDLE) {
+    const cfg = getConfig();
+    remaining = cfg.workDuration * 60;
+    total = remaining;
+  }
+
+  updateTimerDisplay();
+  updateProgress();
+  updateStatsSummary();
+}
+
+/**
+ * 根据当前状态更新按钮的可用性和文案：
+ * - IDLE: 「开始」可用，「暂停」禁用
+ * - PAUSED: 「继续」可用，「暂停」禁用
+ * - 运行中: 「开始」禁用，「暂停」可用
+ */
+function updateButtons() {
+  const btnStart = document.getElementById('btnStart');
+  const btnPause = document.getElementById('btnPause');
+
+  if (state === STATES.IDLE) {
+    btnStart.textContent = '开始';
+    btnStart.disabled = false;
+    btnPause.textContent = '暂停';
+    btnPause.disabled = true;
+  } else if (state === STATES.PAUSED) {
+    btnStart.textContent = '继续';
+    btnStart.disabled = false;
+    btnPause.textContent = '暂停';
+    btnPause.disabled = true;
+  } else {
+    // WORKING / SHORT_BREAK / LONG_BREAK
+    btnStart.textContent = '开始';
+    btnStart.disabled = true;
+    btnPause.textContent = '暂停';
+    btnPause.disabled = false;
+  }
+}
+
+/** 刷新主界面上的今日统计和轮次信息 */
+function updateStatsSummary() {
+  const todayWork = getStatsForPeriod(0);   // "0" = 仅今天
+  document.getElementById('todayCount').textContent =
+    '今日: ' + todayWork.length + ' 个';
+  document.getElementById('sessionRound').textContent =
+    '第 ' + (completedSessions + 1) + ' 轮';
+}
+
+// ===================================================================
+//  第 8 部分：按钮事件处理
+// ===================================================================
+
+/** 「开始」按钮：如果是暂停状态则继续，否则开始新的工作计时 */
+function onStart() {
+  if (state === STATES.PAUSED) {
+    resume();
+    return;
+  }
+  startWork();
+}
+
+function onPause()  { pause(); }
+function onReset()  { reset(); }
+
+// ===================================================================
+//  第 9 部分：设置弹窗逻辑
+// ===================================================================
+
+/**
+ * 打开设置弹窗。
+ * 从 localStorage 读取当前配置并填入表单控件。
+ */
+function openSettings() {
+  const cfg = getConfig();
+  document.getElementById('setWork').value         = cfg.workDuration;
+  document.getElementById('setShortBreak').value   = cfg.shortBreakDuration;
+  document.getElementById('setLongBreak').value    = cfg.longBreakDuration;
+  document.getElementById('setLongInterval').value = cfg.sessionsBeforeLongBreak;
+  document.getElementById('setAutoStart').checked  = cfg.autoStartNext;
+  document.getElementById('setSound').checked      = cfg.soundEnabled;
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+
+/**
+ * 保存设置。
+ * - 从表单读取值，做范围限制（防止用户输入非法值）
+ * - 写入 localStorage
+ * - 如果当前是 IDLE 状态，立即更新计时器显示
+ */
+function saveSettings() {
+  const cfg = {
+    workDuration: Math.max(1, Math.min(120,
+      +document.getElementById('setWork').value || 25)),
+    shortBreakDuration: Math.max(1, Math.min(60,
+      +document.getElementById('setShortBreak').value || 5)),
+    longBreakDuration: Math.max(1, Math.min(60,
+      +document.getElementById('setLongBreak').value || 15)),
+    sessionsBeforeLongBreak: Math.max(1, Math.min(10,
+      +document.getElementById('setLongInterval').value || 4)),
+    autoStartNext: document.getElementById('setAutoStart').checked,
+    soundEnabled: document.getElementById('setSound').checked,
+  };
+  saveConfig(cfg);
+  document.getElementById('settingsOverlay').classList.remove('show');
+
+  // 如果在空闲状态，让计时器立刻反映新的工作时长
+  if (state === STATES.IDLE) {
+    remaining = cfg.workDuration * 60;
+    total = remaining;
+    updateUI();
+  }
+}
+
+// 点击遮罩背景关闭弹窗（用户体验优化）
+document.getElementById('settingsOverlay').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('show');  // 仅点背景时关闭
+});
+
+// ===================================================================
+//  第 10 部分：统计弹窗逻辑
+// ===================================================================
+
+/**
+ * 打开统计弹窗。
+ * - 计算今日/本周(7天)/本月(30天)的番茄数和分钟数
+ * - 渲染最近 10 条完成记录
+ */
+function openStats() {
+  const todayWork  = getStatsForPeriod(0);    // 今天
+  const weekWork   = getStatsForPeriod(7);    // 最近 7 天
+  const monthWork  = getStatsForPeriod(30);   // 最近 30 天
+
+  // 填入 6 个统计卡片
+  document.getElementById('statToday').textContent    = todayWork.length;
+  document.getElementById('statWeek').textContent     = weekWork.length;
+  document.getElementById('statMonth').textContent    = monthWork.length;
+  document.getElementById('statTodayMin').textContent = todayWork.reduce((sum, r) => sum + r.duration, 0);
+  document.getElementById('statWeekMin').textContent  = weekWork.reduce((sum, r) => sum + r.duration, 0);
+  document.getElementById('statMonthMin').textContent = monthWork.reduce((sum, r) => sum + r.duration, 0);
+
+  // 最近 10 条记录（最新的在前）
+  const all = loadStats();
+  const recent = all.slice(-10).reverse();   // 取最后 10 条并反转顺序
+  const typeNames = { work: '工作', short_break: '短休', long_break: '长休' };
+
+  document.getElementById('recordList').innerHTML = recent.length === 0
+    ? '<div style="text-align:center;padding:20px;color:#BDC3C7">暂无记录</div>'
+    : recent.map(r =>
+        '<div class="record-row">'
+        + '<span>' + r.date + ' ' + r.time + '</span>'
+        + '<span>' + (typeNames[r.type] || r.type) + ' ' + r.duration + '分钟</span>'
+        + '</div>'
+      ).join('');
+
+  document.getElementById('statsOverlay').classList.add('show');
+}
+
+function closeStats() {
+  document.getElementById('statsOverlay').classList.remove('show');
+}
+
+// 点击遮罩背景关闭
+document.getElementById('statsOverlay').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('show');
+});
+
+// ===================================================================
+//  第 11 部分：应用初始化
+// ===================================================================
+
+// 请求桌面通知权限（如果尚未决定）
+requestNotificationPermission();
+
+// 加载配置，初始化计时器为工作时长
+const initCfg = getConfig();
+remaining = initCfg.workDuration * 60;
+total = remaining;
+
+// 首次渲染 UI
+updateUI();
+updateButtons();
+</script>
+
+</body>
+</html>

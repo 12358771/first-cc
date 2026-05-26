@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍊 减肥打卡100天 · 橘子陪你瘦</title>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+<style>
+/* ===== CSS 变量 — 糖果花园主题 ===== */
+:root {
+  --bg: #FFF0F3;
+  --card: #FFFFFF;
+  --primary: #FF6B7A;
+  --primary-dark: #E55A68;
+  --primary-light: #FFB3BB;
+  --blue: #6BA3FF;
+  --blue-dark: #5B92E8;
+  --blue-light: #A8CCFF;
+  --success: #5EC4A4;
+  --warning: #FFD166;
+  --muted: #F0E0E5;
+  --text: #4A3F3F;
+  --text-light: #8B7E7E;
+  --border: #FFD4DC;
+  --shadow: 0 4px 16px rgba(255, 107, 122, 0.12);
+  --shadow-lg: 0 8px 30px rgba(255, 107, 122, 0.15);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --font: 'ZCOOL KuaiLe', 'PingFang SC', 'Microsoft YaHei UI', cursive, sans-serif;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  background-image: radial-gradient(circle at 20% 20%, #FFF5F8 0%, #FFF0F3 40%, #FFECEE 100%);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ===== 容器 ===== */
+.app-container {
+  position: relative;
+  display: none;
+}
+
+/* ===== 开屏 ===== */
+.splash-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 1000; cursor: pointer;
+  animation: splashIn 0.5s ease;
+}
+
+@keyframes splashIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.splash-screen.fadeout {
+  animation: splashOut 0.6s ease forwards;
+}
+
+@keyframes splashOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.08); pointer-events: none; }
+}
+
+.splash-orange {
+  position: relative;
+  width: 140px; height: 140px;
+  margin-bottom: 12px;
+}
+
+.splash-title {
+  font-size: 26px; font-weight: bold;
+  color: var(--primary); text-align: center;
+  line-height: 1.4; margin-bottom: 4px;
+}
+
+.splash-cheer {
+  font-size: 14px; color: #FFA630; margin-bottom: 16px;
+}
+
+.splash-dots { display: flex; gap: 8px; margin-bottom: 16px; }
+.splash-dots span {
+  font-size: 12px; color: var(--muted);
+  transition: color 0.3s;
+}
+.splash-dots span.active { color: #FFA630; }
+
+.splash-hint {
+  font-size: 10px; color: var(--text-light);
+}
+
+/* ===== 紧凑小窗 ===== */
+.compact-view {
+  width: 400px; background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  border: 3px solid var(--border);
+  padding: 0; overflow: hidden;
+  animation: viewIn 0.35s ease;
+}
+
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.compact-top {
+  display: flex; justify-content: space-between;
+  align-items: center; padding: 12px 16px 0;
+}
+.compact-top .paw { font-size: 13px; }
+.compact-top .close-btn {
+  font-size: 16px; color: var(--text-light); cursor: pointer;
+  transition: color 0.2s;
+}
+.compact-top .close-btn:hover { color: var(--primary); }
+
+.compact-cat {
+  text-align: center; padding-top: 16px;
+  font-size: 80px; line-height: 1.1;
+}
+
+.compact-cheer {
+  text-align: center; font-size: 15px; font-weight: bold;
+  color: var(--primary); padding: 6px 0 16px;
+}
+
+.compact-date {
+  text-align: center; font-size: 16px; font-weight: bold;
+  color: var(--text); padding-bottom: 16px;
+}
+
+.compact-dots {
+  display: flex; justify-content: center; gap: 10px;
+  padding-bottom: 16px;
+}
+.compact-dots span { font-size: 22px; }
+
+.compact-btns {
+  display: flex; justify-content: center; gap: 14px;
+  padding-bottom: 16px;
+}
+
+.btn {
+  border: none; border-radius: var(--radius-sm);
+  font-family: var(--font); font-size: 17px; font-weight: bold;
+  color: white; cursor: pointer; padding: 12px 28px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: scale(0.97); }
+
+.btn-pink { background: var(--primary); box-shadow: 0 3px 0 var(--primary-dark); }
+.btn-blue { background: var(--blue); box-shadow: 0 3px 0 var(--blue-dark); }
+.btn-green { background: var(--success); box-shadow: 0 3px 0 #4AA88A; }
+
+.compact-stats {
+  text-align: center; font-size: 15px; font-weight: bold;
+  color: var(--text-light); padding-bottom: 20px;
+}
+
+/* ===== 打卡表单 ===== */
+.form-view {
+  width: 480px; background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  border: 3px solid var(--border);
+  padding: 0; overflow: hidden;
+  animation: viewIn 0.35s ease;
+}
+
+.form-top {
+  display: flex; justify-content: space-between;
+  align-items: center; padding: 14px 18px 0;
+}
+.form-top .title { font-size: 17px; font-weight: bold; color: var(--primary); }
+.form-top .actions { display: flex; gap: 14px; align-items: center; }
+.form-top .collapse-btn { font-size: 12px; font-weight: bold; color: var(--blue); cursor: pointer; }
+.form-top .close-btn { font-size: 16px; color: var(--text-light); cursor: pointer; }
+
+.form-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px 14px;
+}
+.form-header .cat { font-size: 36px; }
+.form-header .day-info .day { font-size: 17px; font-weight: bold; color: var(--text); }
+.form-header .day-info .date { font-size: 12px; font-weight: bold; color: var(--text-light); }
+
+.form-cheer {
+  text-align: center; font-size: 12px; font-weight: bold;
+  color: var(--primary-light); padding-bottom: 12px;
+}
+
+.form-fields { padding: 0 20px; }
+.field-row {
+  margin-bottom: 10px;
+}
+.field-label {
+  font-size: 12px; font-weight: bold; color: var(--text);
+  margin-bottom: 4px; display: block;
+}
+.field-input {
+  width: 100%; padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font); font-size: 14px; font-weight: bold;
+  color: var(--text); background: white;
+  outline: none; transition: border-color 0.2s;
+}
+.field-input:focus { border-color: var(--primary); }
+textarea.field-input { resize: vertical; min-height: 60px; }
+
+.form-actions {
+  display: flex; gap: 10px; padding: 16px 20px;
+  align-items: center;
+}
+
+.mini-cal-section {
+  padding: 0 20px 16px;
+}
+.mini-cal-title {
+  font-size: 12px; font-weight: bold; color: var(--blue);
+  text-align: center; margin-bottom: 8px;
+}
+
+/* ===== 日历视图 ===== */
+.calendar-view {
+  width: 520px; background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  border: 3px solid var(--border);
+  padding: 0; overflow: hidden;
+  animation: viewIn 0.35s ease;
+}
+
+.cal-top {
+  display: flex; justify-content: space-between;
+  align-items: center; padding: 14px 18px 0;
+}
+.cal-top .title { font-size: 17px; font-weight: bold; color: var(--blue); }
+.cal-top .actions { display: flex; gap: 14px; align-items: center; }
+.cal-top .back-btn { font-size: 12px; font-weight: bold; color: var(--primary); cursor: pointer; }
+.cal-top .close-btn { font-size: 16px; color: var(--text-light); cursor: pointer; }
+
+.cal-stats {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 18px 6px;
+}
+.cal-stats .stat { font-size: 12px; font-weight: bold; color: var(--text); }
+.cal-stats .stat.blue { color: var(--blue); }
+
+.cal-nav {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px; padding: 6px 0 10px;
+}
+.cal-nav .nav-btn { font-size: 13px; font-weight: bold; color: var(--blue); cursor: pointer; }
+.cal-nav .month-label { font-size: 17px; font-weight: bold; color: var(--text); min-width: 100px; text-align: center; }
+.cal-nav .today-btn { font-size: 12px; font-weight: bold; color: var(--primary); cursor: pointer; }
+
+.cal-grid-wrap {
+  display: flex; justify-content: center; padding: 0 14px;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 44px);
+  gap: 4px;
+}
+
+.cal-cell-header {
+  width: 44px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: bold; color: var(--text-light);
+}
+
+.cal-cell {
+  width: 44px; height: 44px;
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: bold; cursor: pointer;
+  transition: transform 0.15s;
+  position: relative;
+}
+.cal-cell:hover { transform: scale(1.08); z-index: 1; }
+.cal-cell.empty-day { background: #F5EEF0; color: #C0B0B0; cursor: default; }
+.cal-cell.out-range { background: #E8E0E0; color: #C0B0B0; cursor: default; }
+.cal-cell.complete { background: var(--success); color: white; }
+.cal-cell.partial { background: var(--warning); color: var(--text); }
+.cal-cell.none { background: var(--muted); color: var(--text); }
+.cal-cell.today { box-shadow: 0 0 0 3px var(--primary); }
+.cal-cell.today::after {
+  content: '🐾'; font-size: 9px; position: absolute;
+  top: 1px; right: 3px;
+}
+
+.cal-info {
+  text-align: center; font-size: 11px; font-weight: bold;
+  color: var(--text-light); padding: 10px 0 6px;
+}
+
+.cal-legend {
+  display: flex; justify-content: center; gap: 14px;
+  padding-bottom: 16px; align-items: center;
+}
+.cal-legend .dot { font-size: 10px; }
+.cal-legend .label { font-size: 9px; font-weight: bold; color: var(--text-light); }
+
+/* ===== 总结弹窗 ===== */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.25);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.summary-dialog {
+  width: 380px; max-width: 90vw;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  border: 3px solid var(--border);
+  padding: 24px 22px;
+  animation: popIn 0.3s ease;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.summary-title {
+  text-align: center; font-size: 20px; font-weight: bold;
+  color: var(--primary); margin-bottom: 16px;
+}
+
+.summary-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; font-size: 14px; font-weight: bold;
+}
+.summary-row .label { color: var(--text); }
+.summary-row .value { color: var(--primary); }
+
+.summary-divider {
+  height: 1px; background: var(--border);
+  margin: 10px 0;
+}
+
+.summary-goal-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0;
+}
+.summary-goal-row .label { font-size: 14px; font-weight: bold; color: var(--text); }
+.summary-goal-input {
+  width: 70px; padding: 6px 8px; text-align: center;
+  border: 2px solid var(--border); border-radius: var(--radius-sm);
+  font-family: var(--font); font-size: 14px; font-weight: bold;
+  color: var(--text); outline: none;
+}
+.summary-goal-input:focus { border-color: var(--primary); }
+.summary-goal-unit { font-size: 12px; font-weight: bold; color: var(--text-light); }
+.summary-goal-btn {
+  font-size: 12px; font-weight: bold;
+  background: var(--blue); color: white;
+  border: none; border-radius: var(--radius-sm);
+  padding: 6px 14px; cursor: pointer;
+  font-family: var(--font);
+}
+
+.goal-remain {
+  text-align: center; font-size: 12px; font-weight: bold;
+  color: var(--text-light); padding: 6px 0;
+}
+
+.summary-card { margin-top: 12px; }
+
+.progress-bar {
+  width: 100%; height: 8px; background: var(--muted);
+  border-radius: 4px; margin: 8px 0 4px; overflow: hidden;
+}
+.progress-bar .fill {
+  height: 100%; background: var(--blue);
+  border-radius: 4px; transition: width 0.5s ease;
+}
+.progress-text {
+  text-align: center; font-size: 11px; font-weight: bold;
+  color: var(--text-light); margin-bottom: 12px;
+}
+
+.summary-close {
+  display: block; margin: 16px auto 0;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 500px) {
+  .compact-view { width: 92vw; }
+  .form-view { width: 94vw; }
+  .calendar-view { width: 96vw; }
+  .cal-cell, .cal-cell-header { width: 38px; }
+  .cal-cell { height: 38px; font-size: 11px; }
+  .cal-grid { gap: 3px; }
+  .summary-dialog { width: 92vw; padding: 18px 14px; }
+}
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+  background: var(--success); color: white;
+  padding: 10px 24px; border-radius: 20px;
+  font-family: var(--font); font-size: 14px; font-weight: bold;
+  z-index: 3000; animation: toastIn 0.3s ease, toastOut 0.3s ease 1.5s forwards;
+}
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<!-- ===== 开屏 ===== -->
+<div class="splash-screen" id="splash">
+  <div class="splash-orange">
+    <canvas id="orangeCanvas" width="140" height="140"></canvas>
+  </div>
+  <div class="splash-title">减肥打卡<br>100天</div>
+  <div class="splash-cheer">🍊 小橘子陪你一起加油！🍊</div>
+  <div class="splash-dots" id="splashDots">
+    <span>●</span><span>●</span><span>●</span><span>●</span>
+  </div>
+  <div class="splash-hint">点击任意位置开始</div>
+</div>
+
+<!-- ===== 紧凑小窗 ===== -->
+<div class="app-container" id="compactView">
+  <div class="compact-view">
+    <div class="compact-top">
+      <span class="paw">🐾</span>
+      <span class="close-btn" onclick="window.close()">✕</span>
+    </div>
+    <div class="compact-cat" id="compactCat">🐱</div>
+    <div class="compact-cheer" id="compactCheer"></div>
+    <div class="compact-date" id="compactDate"></div>
+    <div class="compact-dots" id="compactDots"></div>
+    <div class="compact-btns">
+      <button class="btn btn-pink" onclick="showFormView()">📝 今天打卡</button>
+      <button class="btn btn-blue" onclick="showCalendarView()">📅 减肥日历</button>
+    </div>
+    <div class="compact-stats" id="compactStats"></div>
+  </div>
+</div>
+
+<!-- ===== 打卡表单 ===== -->
+<div class="app-container" id="formView">
+  <div class="form-view">
+    <div class="form-top">
+      <span class="title">🐱 减肥打卡100天</span>
+      <div class="actions">
+        <span class="collapse-btn" onclick="showCompactView()">▼ 收起</span>
+        <span class="close-btn" onclick="window.close()">✕</span>
+      </div>
+    </div>
+    <div class="form-header">
+      <span class="cat">🐱</span>
+      <div class="day-info">
+        <div class="day" id="formDay">Day 1/100</div>
+        <div class="date" id="formDate">2026年05月26日</div>
+      </div>
+    </div>
+    <div class="form-cheer" id="formCheer"></div>
+    <div class="form-fields">
+      <div class="field-row">
+        <label class="field-label">⚖️ 今日体重 (kg)</label>
+        <input class="field-input" id="inpWeight" type="text" placeholder="例: 65.5">
+      </div>
+      <div class="field-row">
+        <label class="field-label">🍳 今日早饭</label>
+        <input class="field-input" id="inpBreakfast" type="text" placeholder="例: 全麦面包+鸡蛋+牛奶">
+      </div>
+      <div class="field-row">
+        <label class="field-label">🍱 今日晚饭</label>
+        <input class="field-input" id="inpDinner" type="text" placeholder="例: 蔬菜沙拉+鸡胸肉">
+      </div>
+      <div class="field-row">
+        <label class="field-label">🌙 昨晚睡眠</label>
+        <input class="field-input" id="inpSleep" type="text" placeholder="例: 23:00-7:00，质量好">
+      </div>
+      <div class="field-row">
+        <label class="field-label">💭 减肥感受</label>
+        <textarea class="field-input" id="inpFeeling" rows="2" placeholder="今天感觉怎么样..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-pink" onclick="saveRecord()">💾 保存记录</button>
+      <span style="font-size:12px;font-weight:bold;color:var(--text-light);cursor:pointer" onclick="deleteRecord()">🗑️ 删除本条</span>
+    </div>
+    <div class="mini-cal-section">
+      <div class="mini-cal-title">📅 打卡日历</div>
+      <div class="cal-nav">
+        <span class="nav-btn" onclick="navMiniMonth(-1)">◀</span>
+        <span class="month-label" id="miniMonthLabel"></span>
+        <span class="nav-btn" onclick="navMiniMonth(1)">▶</span>
+      </div>
+      <div class="cal-grid-wrap">
+        <div class="cal-grid" id="miniCalGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 日历大视图 ===== -->
+<div class="app-container" id="calendarView">
+  <div class="calendar-view">
+    <div class="cal-top">
+      <span class="title">🐱 减肥日历</span>
+      <div class="actions">
+        <span class="back-btn" onclick="showCompactView()">▼ 返回小窗</span>
+        <span class="close-btn" onclick="window.close()">✕</span>
+      </div>
+    </div>
+    <div class="cal-stats">
+      <span class="stat" id="calCompleted"></span>
+      <button class="btn btn-green" style="font-size:12px;padding:6px 14px" onclick="showSummary()">📊 减肥总结</button>
+      <span class="stat blue" id="calStreak"></span>
+    </div>
+    <div class="cal-nav">
+      <span class="nav-btn" onclick="navCalMonth(-1)">◀ 上月</span>
+      <span class="month-label" id="calMonthLabel"></span>
+      <span class="nav-btn" onclick="navCalMonth(1)">下月 ▶</span>
+      <span class="today-btn" onclick="goCalToday()" style="margin-left:12px">📍 今天</span>
+    </div>
+    <div class="cal-grid-wrap">
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+    <div class="cal-info" id="calInfo">👆 点击日历上的日期查看详情或编辑</div>
+    <div class="cal-legend">
+      <span class="dot" style="color:var(--success)">●</span> <span class="label">全部完成</span>
+      <span class="dot" style="color:var(--warning)">●</span> <span class="label">部分填写</span>
+      <span class="dot" style="color:var(--muted)">●</span> <span class="label">未填写</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 总结弹窗(隐藏) ===== -->
+<div id="summaryOverlay" style="display:none"></div>
+
+<script>
+// ===================================================================
+// 1. 常量与数据管理
+// ===================================================================
+
+const TOTAL_DAYS = 100;
+const STORAGE_KEY = 'diet_plan_100';
+
+const CHEERS = [
+  '今天也要加油哦~ 🎀', '你是最棒的喵! ✨', '坚持就是胜利! 💪',
+  '每天记录一点点! 🌸', '瘦成闪电不是梦! ⚡', '小橘子为你骄傲! 🍊', '又坚持了一天呢! 🌟'
+];
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) throw new Error();
+    const d = JSON.parse(raw);
+    if (!d.startDate || !d.records) throw new Error();
+    if (!d.goalWeight) d.goalWeight = null;
+    return d;
+  } catch (e) {
+    return { startDate: new Date().toISOString().slice(0, 10), records: {}, goalWeight: null };
+  }
+}
+
+function saveData(data) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+}
+
+let data = loadData();
+
+function getDayNumber(dateStr) {
+  const start = new Date(data.startDate + 'T00:00:00');
+  const d = new Date(dateStr + 'T00:00:00');
+  const delta = Math.floor((d - start) / 86400000);
+  return (delta >= 0 && delta < TOTAL_DAYS) ? delta + 1 : -1;
+}
+
+function getDayStatus(dateStr) {
+  const rec = data.records[dateStr];
+  if (!rec) return 'empty';
+  const filled = ['weight','breakfast','dinner','sleep','feeling']
+    .filter(k => rec[k] !== null && rec[k] !== '' && rec[k] !== undefined).length;
+  if (filled === 0) return 'empty';
+  if (filled === 5) return 'complete';
+  return 'partial';
+}
+
+function getStats() {
+  let complete = 0, filled = 0, streak = 0;
+  const today = new Date();
+  for (const [d, rec] of Object.entries(data.records)) {
+    if (getDayStatus(d) !== 'empty') filled++;
+    if (getDayStatus(d) === 'complete') complete++;
+  }
+  for (let i = 0; i < TOTAL_DAYS; i++) {
+    const d = new Date(today - i * 86400000).toISOString().slice(0, 10);
+    if (['partial','complete'].includes(getDayStatus(d))) streak++;
+    else break;
+  }
+  return { complete, filled, rate: Math.round(complete / TOTAL_DAYS * 1000) / 10, streak };
+}
+
+function getLatestWeight() {
+  let lw = null, ld = '';
+  for (const [d, rec] of Object.entries(data.records)) {
+    if (rec.weight !== null && rec.weight !== '' && rec.weight !== undefined) {
+      if (!ld || d > ld) { ld = d; lw = parseFloat(rec.weight) || rec.weight; }
+    }
+  }
+  return lw;
+}
+
+function getStartingWeight() {
+  const start = new Date(data.startDate + 'T00:00:00');
+  for (let i = 0; i < TOTAL_DAYS; i++) {
+    const d = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
+    const rec = data.records[d];
+    if (rec && rec.weight !== null && rec.weight !== '' && rec.weight !== undefined) {
+      return parseFloat(rec.weight) || rec.weight;
+    }
+  }
+  return null;
+}
+
+function getDaysRemaining() {
+  const start = new Date(data.startDate + 'T00:00:00');
+  const end = new Date(start.getTime() + TOTAL_DAYS * 86400000);
+  return Math.max(0, Math.ceil((end - new Date()) / 86400000));
+}
+
+// ===================================================================
+// 2. 开屏
+// ===================================================================
+
+function drawOrange() {
+  const c = document.getElementById('orangeCanvas');
+  const ctx = c.getContext('2d');
+  // 阴影
+  ctx.fillStyle = '#E8C8B0';
+  ctx.beginPath(); ctx.arc(73, 83, 48, 0, Math.PI*2); ctx.fill();
+  // 身体
+  ctx.fillStyle = '#FFA630';
+  ctx.beginPath(); ctx.arc(70, 75, 48, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#E8921E'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(70, 75, 48, 0, Math.PI*2); ctx.stroke();
+  // 高光
+  ctx.fillStyle = '#FFC878';
+  ctx.beginPath(); ctx.arc(55, 55, 13, 0, Math.PI*2); ctx.fill();
+  // 叶子
+  ctx.fillStyle = '#5EC4A4';
+  ctx.beginPath(); ctx.ellipse(95, 38, 14, 8, 0.3, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#3DA87D'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(95, 38, 14, 8, 0.3, 0, Math.PI*2); ctx.stroke();
+  // 叶脉
+  ctx.strokeStyle = '#3DA87D'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(90, 36); ctx.lineTo(100, 40); ctx.stroke();
+  // 眼睛
+  ctx.fillStyle = '#5D4E3E';
+  ctx.beginPath(); ctx.arc(53, 68, 5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(79, 68, 5, 0, Math.PI*2); ctx.fill();
+  // 眼高光
+  ctx.fillStyle = 'white';
+  ctx.beginPath(); ctx.arc(51, 66, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(77, 66, 2.5, 0, Math.PI*2); ctx.fill();
+  // 腮红
+  ctx.fillStyle = '#FFB3BB';
+  ctx.beginPath(); ctx.arc(38, 78, 7, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(92, 78, 7, 0, Math.PI*2); ctx.fill();
+  // 嘴巴
+  ctx.strokeStyle = '#5D4E3E'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(66, 75, 10, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+}
+
+let splashDotIdx = 0;
+function animateSplashDots() {
+  const dots = document.querySelectorAll('#splashDots span');
+  dots.forEach(d => d.classList.remove('active'));
+  dots[splashDotIdx].classList.add('active');
+  splashDotIdx = (splashDotIdx + 1) % 4;
+}
+
+document.getElementById('splash').addEventListener('click', dismissSplash);
+
+function dismissSplash() {
+  clearInterval(window._splashInterval);
+  clearTimeout(window._splashTimeout);
+  document.getElementById('splash').classList.add('fadeout');
+  setTimeout(() => {
+    document.getElementById('splash').style.display = 'none';
+    showCompactView();
+  }, 600);
+}
+
+// ===================================================================
+// 3. 视图切换
+// ===================================================================
+
+let currentView = 'compact';
+let selectedDate = new Date().toISOString().slice(0, 10);
+let calYear, calMonth, miniCalYear, miniCalMonth;
+
+function hideAll() {
+  ['compactView','formView','calendarView'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+}
+
+function showCompactView() {
+  hideAll();
+  currentView = 'compact';
+  refreshCompact();
+  document.getElementById('compactView').style.display = 'block';
+}
+
+function showFormView(dateStr) {
+  if (dateStr) selectedDate = dateStr;
+  else selectedDate = new Date().toISOString().slice(0, 10);
+  hideAll();
+  currentView = 'form';
+  loadFormRecord();
+  drawMiniCal();
+  document.getElementById('formView').style.display = 'block';
+}
+
+function showCalendarView() {
+  hideAll();
+  currentView = 'calendar';
+  const now = new Date();
+  calYear = now.getFullYear();
+  calMonth = now.getMonth() + 1;
+  refreshCalendarView();
+  document.getElementById('calendarView').style.display = 'block';
+}
+
+// ===================================================================
+// 4. 紧凑视图
+// ===================================================================
+
+function refreshCompact() {
+  const today = new Date().toISOString().slice(0, 10);
+  const dn = getDayNumber(today);
+  document.getElementById('compactCheer').textContent = CHEERS[Math.floor(Math.random() * CHEERS.length)];
+  document.getElementById('compactDate').textContent = dn > 0
+    ? `📅 Day ${dn}/100  ${formatDateShort(today)}`
+    : `📅 ${formatDateShort(today)}`;
+  document.getElementById('compactCat').textContent = '🐱';
+
+  // 圆点
+  const rec = data.records[today];
+  const fields = ['weight','breakfast','dinner','sleep','feeling'];
+  const icons = ['⚖️','🍳','🍱','🌙','💭'];
+  const dotsDiv = document.getElementById('compactDots');
+  dotsDiv.innerHTML = icons.map((icon, i) => {
+    const filled = rec && rec[fields[i]] !== null && rec[fields[i]] !== '' && rec[fields[i]] !== undefined;
+    return `<span style="color:${filled ? 'var(--success)' : 'var(--muted)'}">${icon}</span>`;
+  }).join('');
+
+  const stats = getStats();
+  document.getElementById('compactStats').textContent = `✅ ${stats.complete}天完成  🔥 ${stats.streak}天连续`;
+}
+
+function formatDateShort(d) {
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getMonth()+1}月${dt.getDate()}日`;
+}
+
+function formatDateFull(d) {
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getFullYear()}年${dt.getMonth()+1}月${dt.getDate()}日`;
+}
+
+// ===================================================================
+// 5. 表单
+// ===================================================================
+
+function loadFormRecord() {
+  const rec = data.records[selectedDate] || {};
+  document.getElementById('inpWeight').value = rec.weight || '';
+  document.getElementById('inpBreakfast').value = rec.breakfast || '';
+  document.getElementById('inpDinner').value = rec.dinner || '';
+  document.getElementById('inpSleep').value = rec.sleep || '';
+  document.getElementById('inpFeeling').value = rec.feeling || '';
+
+  const dn = getDayNumber(selectedDate);
+  document.getElementById('formDay').textContent = dn > 0 ? `Day ${dn}/100` : '准备开始';
+  document.getElementById('formDate').textContent = formatDateFull(selectedDate);
+
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('formCheer').textContent = selectedDate > today
+    ? '🔮 还没到这天呢，可以提前规划哦~'
+    : CHEERS[Math.floor(Math.random() * CHEERS.length)];
+}
+
+function saveRecord() {
+  const record = {
+    weight: parseWeight(document.getElementById('inpWeight').value.trim()),
+    breakfast: document.getElementById('inpBreakfast').value.trim() || null,
+    dinner: document.getElementById('inpDinner').value.trim() || null,
+    sleep: document.getElementById('inpSleep').value.trim() || null,
+    feeling: document.getElementById('inpFeeling').value.trim() || null,
+  };
+  data.records[selectedDate] = record;
+  saveData(data);
+  showToast('保存成功！🍊');
+  showCompactView();
+}
+
+function parseWeight(v) {
+  if (!v) return null;
+  const n = parseFloat(v);
+  return isNaN(n) ? v : n;
+}
+
+function deleteRecord() {
+  if (!confirm(`确定删除 ${formatDateFull(selectedDate)} 的记录吗？`)) return;
+  delete data.records[selectedDate];
+  saveData(data);
+  loadFormRecord();
+  refreshCompact();
+}
+
+// ===================================================================
+// 6. 日历
+// ===================================================================
+
+const WEEKDAYS = ['一','二','三','四','五','六','日'];
+
+function drawCalGrid(containerId, year, month, onDayClick) {
+  const grid = document.getElementById(containerId);
+  const firstDay = new Date(year, month - 1, 1);
+  const firstWd = firstDay.getDay() || 7; // 1=周一
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const today = new Date().toISOString().slice(0, 10);
+
+  let html = WEEKDAYS.map(w => `<div class="cal-cell-header">${w}</div>`).join('');
+
+  for (let i = 0; i < 42; i++) {
+    const dayNum = i - firstWd + 2;
+    if (dayNum < 1 || dayNum > daysInMonth) {
+      html += '<div class="cal-cell empty-day"></div>';
+      continue;
+    }
+    const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+    const dn = getDayNumber(dateStr);
+    if (dn < 1 || dn > TOTAL_DAYS) {
+      html += `<div class="cal-cell out-range">${dayNum}</div>`;
+      continue;
+    }
+    const status = getDayStatus(dateStr);
+    const isToday = dateStr === today;
+    html += `<div class="cal-cell ${status}${isToday ? ' today' : ''}"
+             data-date="${dateStr}" onclick="onCalClick(this, '${dateStr}')">${dayNum}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function onCalClick(el, dateStr) {
+  document.getElementById('calInfo').textContent = '📝 点击跳转到编辑...';
+  showFormView(dateStr);
+}
+
+function drawMiniCal() {
+  if (!miniCalYear) { const n = new Date(); miniCalYear = n.getFullYear(); miniCalMonth = n.getMonth() + 1; }
+  document.getElementById('miniMonthLabel').textContent = `${miniCalYear}年${miniCalMonth}月`;
+  drawCalGrid('miniCalGrid', miniCalYear, miniCalMonth, onCalClick);
+}
+
+function navMiniMonth(d) {
+  miniCalMonth += d;
+  if (miniCalMonth > 12) { miniCalMonth = 1; miniCalYear++; }
+  else if (miniCalMonth < 1) { miniCalMonth = 12; miniCalYear--; }
+  drawMiniCal();
+}
+
+function refreshCalendarView() {
+  const stats = getStats();
+  document.getElementById('calCompleted').textContent = `✅ ${stats.complete}/100天完成`;
+  document.getElementById('calStreak').textContent = `🔥 连续${stats.streak}天`;
+  document.getElementById('calMonthLabel').textContent = `${calYear}年${calMonth}月`;
+  drawCalGrid('calGrid', calYear, calMonth, onCalClick);
+}
+
+function navCalMonth(d) {
+  calMonth += d;
+  if (calMonth > 12) { calMonth = 1; calYear++; }
+  else if (calMonth < 1) { calMonth = 12; calYear--; }
+  refreshCalendarView();
+}
+
+function goCalToday() {
+  const n = new Date();
+  calYear = n.getFullYear();
+  calMonth = n.getMonth() + 1;
+  refreshCalendarView();
+}
+
+// ===================================================================
+// 7. 减肥总结
+// ===================================================================
+
+function showSummary() {
+  const startW = getStartingWeight();
+  const latestW = getLatestWeight();
+  const goalW = data.goalWeight;
+  const remain = getDaysRemaining();
+  const passed = TOTAL_DAYS - remain;
+
+  let lostText = '数据不足', lostColor = 'var(--text-light)';
+  if (startW && latestW) {
+    const diff = startW - latestW;
+    lostText = diff > 0 ? `↓ ${diff.toFixed(1)} kg` : diff < 0 ? `↑ ${(-diff).toFixed(1)} kg` : '持平';
+    lostColor = diff > 0 ? 'var(--success)' : diff < 0 ? 'var(--primary)' : 'var(--text)';
+  }
+
+  let goalRemainText = '👆 设定目标体重查看进度';
+  if (latestW && goalW) {
+    const r = latestW - goalW;
+    goalRemainText = r > 0 ? `💪 还差 ${r.toFixed(1)} kg 达成目标！` : r < 0 ? `🎊 已超额完成 ${(-r).toFixed(1)} kg！太棒了！` : '🎉 刚好达成目标！完美！';
+  } else if (goalW) {
+    goalRemainText = `🎯 目标: ${goalW} kg（等待记录体重）`;
+  }
+
+  const pct = passed / TOTAL_DAYS * 100;
+
+  const overlay = document.getElementById('summaryOverlay');
+  overlay.innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this)closeSummary()">
+      <div class="summary-dialog">
+        <div class="summary-title">📊 减肥总结</div>
+        <div class="summary-row"><span class="label">🎬 初始体重</span><span class="value">${startW ? startW + ' kg' : '未记录'}</span></div>
+        <div class="summary-row"><span class="label">⚖️ 当前体重</span><span class="value">${latestW ? latestW + ' kg' : '未记录'}</span></div>
+        <div class="summary-row"><span class="label">🎉 已减重量</span><span class="value" style="color:${lostColor}">${lostText}</span></div>
+        <div class="summary-divider"></div>
+        <div class="summary-row"><span class="label">🎯 目标体重</span></div>
+        <div class="summary-goal-row">
+          <span class="label" style="font-size:12px">目标</span>
+          <input class="summary-goal-input" id="goalInput" type="text" value="${goalW || ''}" placeholder="55">
+          <span class="summary-goal-unit">kg</span>
+          <button class="summary-goal-btn" onclick="setGoal()">💾 设定</button>
+        </div>
+        <div class="goal-remain" id="goalRemain">${goalRemainText}</div>
+        <div class="summary-divider"></div>
+        <div class="summary-row"><span class="label">📅 已坚持</span><span class="value">${passed} 天</span></div>
+        <div class="summary-row"><span class="label">⏳ 距离完成</span><span class="value">还有 ${remain} 天</span></div>
+        <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+        <div class="progress-text">总进度 ${pct.toFixed(1)}%</div>
+        <button class="btn btn-green summary-close" onclick="closeSummary()">关闭</button>
+      </div>
+    </div>
+  `;
+  overlay.style.display = 'block';
+}
+
+function setGoal() {
+  const v = document.getElementById('goalInput').value.trim();
+  if (v) {
+    const n = parseFloat(v);
+    if (!isNaN(n)) {
+      data.goalWeight = n;
+      saveData(data);
+      showSummary(); // refresh
+    }
+  }
+}
+
+function closeSummary() {
+  document.getElementById('summaryOverlay').style.display = 'none';
+  refreshCalendarView();
+}
+
+// ===================================================================
+// 8. Toast
+// ===================================================================
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2000);
+}
+
+// ===================================================================
+// 9. 初始化
+// ===================================================================
+
+window.addEventListener('DOMContentLoaded', () => {
+  drawOrange();
+  const now = new Date();
+  calYear = now.getFullYear(); calMonth = now.getMonth() + 1;
+  miniCalYear = calYear; miniCalMonth = calMonth;
+  window._splashInterval = setInterval(animateSplashDots, 300);
+  window._splashTimeout = setTimeout(dismissSplash, 3000);
+});
+</script>
+</body>
+</html>
